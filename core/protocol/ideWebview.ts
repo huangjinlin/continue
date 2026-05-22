@@ -89,6 +89,10 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
 export type ToWebviewFromIdeProtocol = ToWebviewFromIdeOrCoreProtocol & {
   setInactive: [undefined, void];
   newSessionWithPrompt: [{ prompt: string }, void];
+  promptoDeliverPrompt: [
+    { sessionId?: string; input: string; submit?: boolean },
+    void,
+  ];
   userInput: [{ input: string }, void];
   focusContinueInput: [undefined, void];
   focusContinueInputWithoutClear: [undefined, void];

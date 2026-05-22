@@ -244,6 +244,12 @@
         "group": "Continue"
       },
       {
+        "command": "continue.copyCurrentSessionId",
+        "category": "Continue",
+        "title": "Copy Current Session ID",
+        "group": "Continue"
+      },
+      {
         "command": "continue.shareSession",
         "category": "Continue",
         "title": "Share Current Chat Session as Markdown",
@@ -734,6 +740,7 @@
     "@reduxjs/toolkit": "^1.9.3",
     "@vscode/ripgrep": "^1.15.9",
     "axios": "^1.13.1",
+    "continue": "file:../..",
     "core": "file:../../core",
     "cors": "^2.8.5",
     "dbinfoz": "^0.14.0",

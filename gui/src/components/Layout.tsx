@@ -1,5 +1,6 @@
+import { Editor, JSONContent } from "@tiptap/react";
 import { OnboardingModes } from "core/protocol/core";
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { CustomScrollbarDiv } from ".";
@@ -12,7 +13,7 @@ import { useAppDispatch, useAppSelector } from "../redux/hooks";
 import { setCodeToEdit } from "../redux/slices/editState";
 import { setDialogMessage, setShowDialog } from "../redux/slices/uiSlice";
 import { enterEdit, exitEdit } from "../redux/thunks/edit";
-import { saveCurrentSession } from "../redux/thunks/session";
+import { loadSession, saveCurrentSession } from "../redux/thunks/session";
 import { fontSize, isMetaEquivalentKeyPressed } from "../util";
 import { ROUTES } from "../util/navigation";
 import { FatalErrorIndicator } from "./config/FatalErrorNotice";
@@ -40,6 +41,45 @@ const GridDiv = styled.div`
   overflow-x: visible;
 `;
 
+async function waitForMainEditor(
+  mainEditorRef: React.MutableRefObject<Editor | null>,
+  timeoutMs = 2000,
+  intervalMs = 25,
+): Promise<Editor | null> {
+  const startedAt = Date.now();
+
+  while (!mainEditorRef.current) {
+    if (Date.now() - startedAt >= timeoutMs) {
+      return null;
+    }
+
+    await new Promise<void>((resolve) => {
+      window.setTimeout(resolve, intervalMs);
+    });
+  }
+
+  return mainEditorRef.current;
+}
+
+function createPromptoEditorContent(input: string): JSONContent {
+  const normalizedInput = input.replace(/\r\n/g, "\n");
+  const lines = normalizedInput.split("\n");
+
+  return {
+    type: "doc",
+    content: lines.map((line) => {
+      if (!line.length) {
+        return { type: "paragraph" };
+      }
+
+      return {
+        type: "paragraph",
+        content: [{ type: "text", text: line }],
+      };
+    }),
+  };
+}
+
 const Layout = () => {
   const [showStagingIndicator, setShowStagingIndicator] = useState(false);
   const navigate = useNavigate();
@@ -48,14 +88,20 @@ const Layout = () => {
   const onboardingCard = useOnboardingCard();
   const ideMessenger = useContext(IdeMessengerContext);
 
-  const { mainEditor } = useMainEditor();
+  const { mainEditor, onEnterRef } = useMainEditor();
+  const mainEditorRef = useRef<Editor | null>(mainEditor);
   const dialogMessage = useAppSelector((state) => state.ui.dialogMessage);
 
   const showDialog = useAppSelector((state) => state.ui.showDialog);
   const isInEdit = useAppSelector((store) => store.session.isInEdit);
+  const currentSessionId = useAppSelector((state) => state.session.id);
   const isHome =
     location.pathname === ROUTES.HOME ||
     location.pathname === ROUTES.HOME_INDEX;
+
+  useEffect(() => {
+    mainEditorRef.current = mainEditor;
+  }, [mainEditor]);
 
   useEffect(() => {
     (async () => {
@@ -116,6 +162,39 @@ const Layout = () => {
     },
     [isHome, isInEdit],
     isHome,
+  );
+
+  useWebviewListener(
+    "promptoDeliverPrompt",
+    async (data) => {
+      navigate(ROUTES.HOME);
+
+      if (isInEdit) {
+        await dispatch(exitEdit({}));
+      }
+
+      if (data.sessionId && data.sessionId !== currentSessionId) {
+        await dispatch(
+          loadSession({
+            sessionId: data.sessionId,
+            saveCurrentSession: true,
+          }),
+        );
+      }
+
+      const editor = await waitForMainEditor(mainEditorRef);
+      if (!editor) {
+        throw new Error("Continue main input was not ready in time.");
+      }
+
+      editor.commands.setContent(createPromptoEditorContent(data.input));
+      editor.commands.focus("end");
+
+      if (data.submit !== false) {
+        onEnterRef.current({ useCodebase: false, noContext: true });
+      }
+    },
+    [currentSessionId, dispatch, isInEdit, navigate],
   );
 
   useWebviewListener(

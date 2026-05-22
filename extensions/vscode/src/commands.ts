@@ -61,6 +61,12 @@ function getFullScreenTab() {
 
 type TelemetryCaptureParams = Parameters<typeof Telemetry.capture>;
 
+type PromptoDeliverPromptParams = {
+  sessionId?: string;
+  input?: string;
+  submit?: boolean;
+};
+
 /**
  * Helper method to add the `isCommandEvent` to all telemetry captures
  */
@@ -93,6 +99,18 @@ function hideGUI() {
     vscode.commands.executeCommand("workbench.action.closeAuxiliaryBar");
     // vscode.commands.executeCommand("workbench.action.toggleAuxiliaryBar");
   }
+}
+
+async function ensureContinueSidebarReady(
+  sidebar: ContinueGUIWebviewViewProvider,
+): Promise<boolean> {
+  focusGUI();
+
+  if (sidebar.isReady) {
+    return true;
+  }
+
+  return await waitForSidebarReady(sidebar, 5000, 100);
 }
 
 function waitForSidebarReady(
@@ -423,6 +441,52 @@ const getCommandsMap: (
     },
     "continue.newSession": () => {
       sidebar.webviewProtocol?.request("newSession", undefined);
+    },
+
+    "continue.copyCurrentSessionId": async () => {
+      const isReady = await ensureContinueSidebarReady(sidebar);
+      if (!isReady) {
+        throw new Error("Continue chat view did not become ready in time.");
+      }
+
+      const sessionId = await sidebar.webviewProtocol.request(
+        "getCurrentSessionId",
+        undefined,
+      );
+
+      if (!sessionId) {
+        void vscode.window.showErrorMessage(
+          "No session ID found. Please start or open a Continue chat session first.",
+        );
+        return;
+      }
+
+      await vscode.env.clipboard.writeText(sessionId);
+      void vscode.window.showInformationMessage(
+        `Copied current Continue session ID: ${sessionId}`,
+      );
+    },
+
+    "continue.promptoDeliverPrompt": async (
+      args: PromptoDeliverPromptParams | undefined,
+    ) => {
+      const input = args?.input;
+
+      if (!input?.trim()) {
+        throw new Error("Prompt input is required.");
+      }
+
+      const isReady = await ensureContinueSidebarReady(sidebar);
+      if (!isReady) {
+        throw new Error("Continue chat view did not become ready in time.");
+      }
+
+      const sessionId = args?.sessionId?.trim();
+      await sidebar.webviewProtocol.request("promptoDeliverPrompt", {
+        sessionId,
+        input,
+        submit: args?.submit,
+      });
     },
 
     "continue.shareSession": async (sessionId: string | undefined) => {

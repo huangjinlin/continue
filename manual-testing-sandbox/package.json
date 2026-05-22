@@ -1,0 +1,8 @@
+{
+  "name": "manual-testing-sandbox",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Local sandbox opened by Continue's VS Code launch configuration for manual testing.",
+  "dependencies": {},
+  "devDependencies": {}
+}
