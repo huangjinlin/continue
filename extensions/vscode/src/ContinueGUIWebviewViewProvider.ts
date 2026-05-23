@@ -12,6 +12,7 @@ export class ContinueGUIWebviewViewProvider
 {
   public static readonly viewType = "continue.continueGUIView";
   public webviewProtocol: VsCodeWebviewProtocol;
+  private _title = "Continue";
 
   public get isReady(): boolean {
     return !!this.webview;
@@ -25,6 +26,7 @@ export class ContinueGUIWebviewViewProvider
     this.webviewProtocol.webview = webviewView.webview;
     this._webviewView = webviewView;
     this._webview = webviewView.webview;
+    this.applyTitle();
     webviewView.webview.html = this.getSidebarContent(
       this.extensionContext,
       webviewView,
@@ -40,6 +42,17 @@ export class ContinueGUIWebviewViewProvider
 
   get webview() {
     return this._webview;
+  }
+
+  public setTitle(title?: string): void {
+    this._title = title?.trim() || "Continue";
+    this.applyTitle();
+  }
+
+  private applyTitle(): void {
+    if (this._webviewView) {
+      this._webviewView.title = this._title;
+    }
   }
 
   public resetWebviewProtocolWebview(): void {

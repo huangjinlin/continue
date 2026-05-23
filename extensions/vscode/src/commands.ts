@@ -63,8 +63,14 @@ type TelemetryCaptureParams = Parameters<typeof Telemetry.capture>;
 
 type PromptoDeliverPromptParams = {
   sessionId?: string;
+  sessionTitle?: string;
   input?: string;
   submit?: boolean;
+};
+
+type PromptoSessionMetadata = {
+  sessionId: string;
+  title: string;
 };
 
 /**
@@ -133,6 +139,53 @@ function waitForSidebarReady(
 
     checkReadyState();
   });
+}
+
+async function resolvePromptoSessionId(
+  core: Core,
+  args: PromptoDeliverPromptParams | undefined,
+): Promise<string | undefined> {
+  const sessionId = args?.sessionId?.trim();
+  if (sessionId) {
+    return sessionId;
+  }
+
+  const sessionTitle = args?.sessionTitle?.trim();
+  if (!sessionTitle) {
+    return undefined;
+  }
+
+  const matchingSessions: PromptoSessionMetadata[] = [];
+  const pageSize = 200;
+
+  for (let offset = 0; ; offset += pageSize) {
+    const sessions = (await core.invoke("history/list", {
+      offset,
+      limit: pageSize,
+    })) as PromptoSessionMetadata[];
+
+    matchingSessions.push(
+      ...sessions.filter((session) => session.title.trim() === sessionTitle),
+    );
+
+    if (matchingSessions.length > 1 || sessions.length < pageSize) {
+      break;
+    }
+  }
+
+  if (matchingSessions.length === 1) {
+    return matchingSessions[0].sessionId;
+  }
+
+  if (matchingSessions.length > 1) {
+    throw new Error(
+      `Multiple Continue sessions found with the title "${sessionTitle}". Use a unique title or set prompto.continueSessionId instead.`,
+    );
+  }
+
+  throw new Error(
+    `No Continue session found with the title "${sessionTitle}".`,
+  );
 }
 
 // Copy everything over from extension.ts
@@ -481,7 +534,7 @@ const getCommandsMap: (
         throw new Error("Continue chat view did not become ready in time.");
       }
 
-      const sessionId = args?.sessionId?.trim();
+      const sessionId = await resolvePromptoSessionId(core, args);
       await sidebar.webviewProtocol.request("promptoDeliverPrompt", {
         sessionId,
         input,

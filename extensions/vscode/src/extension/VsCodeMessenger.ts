@@ -123,6 +123,10 @@ export class VsCodeMessenger {
       vscode.commands.executeCommand("continue.openInNewWindow");
     });
 
+    this.onWebview("sidebar/setTitle", ({ data }) => {
+      this.vsCodeExtension.setSidebarTitle(data?.title);
+    });
+
     this.onWebview("acceptDiff", async ({ data: { filepath, streamId } }) => {
       await vscode.commands.executeCommand(
         "continue.acceptDiff",

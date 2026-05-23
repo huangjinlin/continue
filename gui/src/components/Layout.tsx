@@ -95,6 +95,7 @@ const Layout = () => {
   const showDialog = useAppSelector((state) => state.ui.showDialog);
   const isInEdit = useAppSelector((store) => store.session.isInEdit);
   const currentSessionId = useAppSelector((state) => state.session.id);
+  const currentSessionTitle = useAppSelector((state) => state.session.title);
   const isHome =
     location.pathname === ROUTES.HOME ||
     location.pathname === ROUTES.HOME_INDEX;
@@ -113,6 +114,12 @@ const Layout = () => {
         setShowStagingIndicator(response.content.AUTH_TYPE.includes("staging"));
     })();
   }, []);
+
+  useEffect(() => {
+    void ideMessenger.request("sidebar/setTitle", {
+      title: currentSessionTitle?.trim() || undefined,
+    });
+  }, [currentSessionTitle, ideMessenger]);
 
   useWebviewListener(
     "newSession",

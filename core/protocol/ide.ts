@@ -95,6 +95,7 @@ export type ToIdeFromWebviewOrCoreProtocol = {
   logoutOfControlPlane: [undefined, void];
   reportError: [any, void];
   closeSidebar: [undefined, void];
+  "sidebar/setTitle": [{ title?: string }, void];
 };
 
 export type ToWebviewOrCoreFromIdeProtocol = {

@@ -87,6 +87,10 @@ export class VsCodeExtension {
 
   private ARBITRARY_TYPING_DELAY = 2000;
 
+  public setSidebarTitle(title?: string): void {
+    this.sidebar?.setTitle(title);
+  }
+
   /**
    * This is how you turn next edit on or off at the extension level.
    * This is called on config reload and autocomplete menu updates.
