@@ -12,6 +12,7 @@ import {
   getConfigTsPath,
   getConfigYamlPath,
   getContinueGlobalPath,
+  setContinueGlobalPathOverride,
 } from "core/util/paths";
 import { v4 as uuidv4 } from "uuid";
 import * as vscode from "vscode";
@@ -39,6 +40,11 @@ import {
 import { Battery } from "../util/battery";
 import { FileSearch } from "../util/FileSearch";
 import { VsCodeIdeUtils } from "../util/ideUtils";
+import {
+  CONTINUE_DATA_PATH_KEY,
+  CONTINUE_WORKSPACE_KEY,
+  resolveContinueDataPath,
+} from "../util/workspaceConfig";
 import { VsCodeIde } from "../VsCodeIde";
 
 import { ConfigYamlDocumentLinkProvider } from "./ConfigYamlDocumentLinkProvider";
@@ -180,6 +186,8 @@ export class VsCodeExtension {
   }
 
   constructor(context: vscode.ExtensionContext) {
+    setContinueGlobalPathOverride(resolveContinueDataPath());
+
     // Register auth provider
     this.workOsAuthProvider = new WorkOsAuthProvider(context, this.uriHandler);
 
@@ -436,6 +444,28 @@ export class VsCodeExtension {
       quickEdit,
       this.core,
       this.editDecorationManager,
+    );
+
+    context.subscriptions.push(
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        const dataPathConfig = `${CONTINUE_WORKSPACE_KEY}.${CONTINUE_DATA_PATH_KEY}`;
+        if (!event.affectsConfiguration(dataPathConfig)) {
+          return;
+        }
+
+        void vscode.window
+          .showInformationMessage(
+            "Reload the VS Code window to apply the updated Continue data directory.",
+            "Reload Window",
+          )
+          .then((selection) => {
+            if (selection === "Reload Window") {
+              void vscode.commands.executeCommand(
+                "workbench.action.reloadWindow",
+              );
+            }
+          });
+      }),
     );
 
     // Disabled due to performance issues

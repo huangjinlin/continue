@@ -24,8 +24,7 @@ export function setConfigFilePermissions(filePath: string): void {
   }
 }
 
-const CONTINUE_GLOBAL_DIR = (() => {
-  const configPath = process.env.CONTINUE_GLOBAL_DIR;
+function resolveContinueGlobalDir(configPath?: string): string {
   if (configPath) {
     // Convert relative path to absolute paths based on current working directory
     return path.isAbsolute(configPath)
@@ -33,7 +32,20 @@ const CONTINUE_GLOBAL_DIR = (() => {
       : path.resolve(process.cwd(), configPath);
   }
   return path.join(os.homedir(), ".continue");
-})();
+}
+
+let continueGlobalDirOverride: string | undefined;
+
+export function setContinueGlobalPathOverride(configPath?: string): void {
+  const trimmedPath = configPath?.trim();
+  continueGlobalDirOverride = trimmedPath
+    ? resolveContinueGlobalDir(trimmedPath)
+    : undefined;
+}
+
+export function resetContinueGlobalPathOverride(): void {
+  continueGlobalDirOverride = undefined;
+}
 
 // export const DEFAULT_CONFIG_TS_CONTENTS = `import { Config } from "./types"\n\nexport function modifyConfig(config: Config): Config {
 //   return config;
@@ -67,10 +79,12 @@ export function getGlobalContinueIgnorePath(): string {
 }
 
 export function getContinueGlobalPath(): string {
-  // This is ~/.continue on mac/linux
-  const continuePath = CONTINUE_GLOBAL_DIR;
+  // This is ~/.continue on mac/linux unless a workspace override is configured
+  const continuePath =
+    continueGlobalDirOverride ??
+    resolveContinueGlobalDir(process.env.CONTINUE_GLOBAL_DIR);
   if (!fs.existsSync(continuePath)) {
-    fs.mkdirSync(continuePath);
+    fs.mkdirSync(continuePath, { recursive: true });
   }
   return continuePath;
 }
