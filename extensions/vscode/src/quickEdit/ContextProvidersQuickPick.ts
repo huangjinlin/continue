@@ -2,6 +2,8 @@ import { fetchwithRequestOptions } from "@continuedev/fetch";
 import { ContinueConfig, IDE } from "core";
 import { QuickPickItem, window } from "vscode";
 
+import { localize } from "../util/localization";
+
 export async function getContextProviderItems({
   contextProviders,
 }: ContinueConfig): Promise<QuickPickItem[]> {
@@ -66,8 +68,11 @@ export async function getContextProviderQuickPickVal(
   const quickPick = window.createQuickPick();
 
   quickPick.items = contextProviderItems;
-  quickPick.title = "Context providers";
-  quickPick.placeholder = "Select a context provider to add to your prompt";
+  quickPick.title = localize("Context providers", "上下文提供器");
+  quickPick.placeholder = localize(
+    "Select a context provider to add to your prompt",
+    "选择一个上下文提供器加入你的提示词",
+  );
   quickPick.canSelectMany = true;
 
   quickPick.show();

@@ -3,6 +3,7 @@ import { Telemetry } from "core/util/posthog";
 import * as vscode from "vscode";
 
 import { VsCodeExtension } from "../extension/VsCodeExtension";
+import { localize } from "../util/localization";
 import { getExtensionVersion, isUnsupportedPlatform } from "../util/util";
 
 import { GlobalContext } from "core/util/GlobalContext";
@@ -21,7 +22,10 @@ export async function activateExtension(context: vscode.ExtensionContext) {
 
     globalContext.update("hasShownUnsupportedPlatformWarning", true);
     void vscode.window.showInformationMessage(
-      `Continue detected that you are using ${platformTarget}. Due to native dependencies, Continue may not be able to start`,
+      localize(
+        `Continue detected that you are using ${platformTarget}. Due to native dependencies, Continue may not be able to start`,
+        `Continue 检测到你正在使用 ${platformTarget}。由于原生依赖限制，Continue 可能无法正常启动。`,
+      ),
     );
 
     void Telemetry.capture(

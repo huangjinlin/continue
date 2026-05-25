@@ -2,7 +2,7 @@
   "name": "continue",
   "icon": "media/icon.png",
   "author": "Continue Dev, Inc",
-  "version": "1.3.40",
+  "version": "1.3.41",
   "repository": {
     "type": "git",
     "url": "https://github.com/continuedev/continue"
@@ -18,9 +18,9 @@
   "homepage": "https://continue.dev",
   "qna": "https://github.com/continuedev/continue/issues/new/choose",
   "license": "Apache-2.0",
-  "displayName": "Continue - open-source AI code agent",
+  "displayName": "%extension.displayName%",
   "pricing": "Free",
-  "description": "The leading open-source AI code agent",
+  "description": "%extension.description%",
   "publisher": "Continue",
   "engines": {
     "vscode": "^1.70.0",
@@ -84,7 +84,7 @@
       }
     ],
     "configuration": {
-      "title": "Continue",
+      "title": "%configuration.title%",
       "properties": {
         "continue.telemetryEnabled": {
           "type": "boolean",
@@ -96,12 +96,12 @@
         "continue.showInlineTip": {
           "type": "boolean",
           "default": true,
-          "description": "Show inline suggestion to use the Continue keyboard shortcuts (e.g. \"Cmd/Ctrl L to select code, Cmd/Ctrl I to edit\")."
+          "description": "%configuration.continue.showInlineTip.description%"
         },
         "continue.disableQuickFix": {
           "type": "boolean",
           "default": false,
-          "description": "Disable the quick fix feature."
+          "description": "%configuration.continue.disableQuickFix.description%"
         },
         "continue.enableQuickActions": {
           "type": "boolean",
@@ -137,7 +137,7 @@
           "type": "string",
           "default": "",
           "scope": "window",
-          "markdownDescription": "Optional Continue data directory for this workspace. Absolute paths are used as-is, and relative paths are resolved from the first workspace folder. Set this in workspace settings to keep chats and other local Continue data in your repository, for example `.continue/state`."
+          "markdownDescription": "%configuration.continue.dataPath.markdownDescription%"
         },
         "continue.remoteConfigServerUrl": {
           "type": "string",
@@ -152,7 +152,7 @@
         "continue.remoteConfigSyncPeriod": {
           "type": "number",
           "default": 60,
-          "description": "The period of time in minutes between automatic syncs."
+          "description": "%configuration.continue.remoteConfigSyncPeriod.description%"
         }
       }
     },
@@ -160,238 +160,238 @@
       {
         "command": "continue.applyCodeFromChat",
         "category": "Continue",
-        "title": "Apply code from chat",
+        "title": "%command.continue.applyCodeFromChat.title%",
         "group": "Continue"
       },
       {
         "command": "continue.acceptDiff",
         "category": "Continue",
-        "title": "Accept Diff",
+        "title": "%command.continue.acceptDiff.title%",
         "group": "Continue"
       },
       {
         "command": "continue.rejectDiff",
         "category": "Continue",
-        "title": "Reject Diff",
+        "title": "%command.continue.rejectDiff.title%",
         "group": "Continue",
         "icon": "$(stop)"
       },
       {
         "command": "continue.acceptVerticalDiffBlock",
         "category": "Continue",
-        "title": "Accept Vertical Diff Block",
+        "title": "%command.continue.acceptVerticalDiffBlock.title%",
         "group": "Continue"
       },
       {
         "command": "continue.rejectVerticalDiffBlock",
         "category": "Continue",
-        "title": "Reject Vertical Diff Block",
+        "title": "%command.continue.rejectVerticalDiffBlock.title%",
         "group": "Continue"
       },
       {
         "command": "continue.focusEdit",
         "category": "Continue",
-        "title": "Add to Edit",
+        "title": "%command.continue.focusEdit.title%",
         "group": "Continue"
       },
       {
         "command": "continue.focusContinueInput",
         "category": "Continue",
-        "title": "Add Highlighted Code to Context and Clear Chat",
+        "title": "%command.continue.focusContinueInput.title%",
         "group": "Continue"
       },
       {
         "command": "continue.focusContinueInputWithoutClear",
         "category": "Continue",
-        "title": "Add to Chat",
+        "title": "%command.continue.focusContinueInputWithoutClear.title%",
         "group": "Continue"
       },
       {
         "command": "continue.debugTerminal",
         "category": "Continue",
-        "title": "Debug Terminal",
+        "title": "%command.continue.debugTerminal.title%",
         "group": "Continue"
       },
       {
         "command": "continue.exitEditMode",
         "category": "Continue",
-        "title": "Exit Edit Mode",
+        "title": "%command.continue.exitEditMode.title%",
         "group": "Continue"
       },
       {
         "command": "continue.openConfigPage",
         "category": "Continue",
-        "title": "Open Settings",
+        "title": "%command.continue.openConfigPage.title%",
         "icon": "$(gear)",
         "group": "Continue"
       },
       {
         "command": "continue.toggleTabAutocompleteEnabled",
         "category": "Continue",
-        "title": "Toggle Autocomplete Enabled",
+        "title": "%command.continue.toggleTabAutocompleteEnabled.title%",
         "group": "Continue"
       },
       {
         "command": "continue.forceAutocomplete",
-        "title": "Continue: Force Autocomplete",
+        "title": "%command.continue.forceAutocomplete.title%",
         "category": "Continue"
       },
       {
         "command": "continue.selectFilesAsContext",
         "category": "Continue",
-        "title": "Select Files as Context",
+        "title": "%command.continue.selectFilesAsContext.title%",
         "group": "Continue"
       },
       {
         "command": "continue.newSession",
         "category": "Continue",
-        "title": "New Session",
+        "title": "%command.continue.newSession.title%",
         "icon": "$(add)",
         "group": "Continue"
       },
       {
         "command": "continue.copyCurrentSessionId",
         "category": "Continue",
-        "title": "Copy Current Session ID",
+        "title": "%command.continue.copyCurrentSessionId.title%",
         "group": "Continue"
       },
       {
         "command": "continue.shareSession",
         "category": "Continue",
-        "title": "Share Current Chat Session as Markdown",
+        "title": "%command.continue.shareSession.title%",
         "group": "Continue"
       },
       {
         "command": "continue.viewHistory",
         "category": "Continue",
-        "title": "View History",
+        "title": "%command.continue.viewHistory.title%",
         "icon": "$(history)",
         "group": "Continue"
       },
       {
         "command": "continue.viewLogs",
         "category": "Continue",
-        "title": "View Logs",
+        "title": "%command.continue.viewLogs.title%",
         "group": "Continue"
       },
       {
         "command": "continue.clearConsole",
         "category": "Continue",
-        "title": "Clear Console",
+        "title": "%command.continue.clearConsole.title%",
         "icon": "$(clear-all)",
         "group": "Continue"
       },
       {
         "command": "continue.navigateTo",
         "category": "Continue",
-        "title": "Navigate to a path",
+        "title": "%command.continue.navigateTo.title%",
         "group": "Continue"
       },
       {
         "command": "continue.writeCommentsForCode",
         "category": "Continue",
-        "title": "Write Comments for this Code",
+        "title": "%command.continue.writeCommentsForCode.title%",
         "group": "Continue"
       },
       {
         "command": "continue.writeDocstringForCode",
         "category": "Continue",
-        "title": "Write a Docstring for this Code",
+        "title": "%command.continue.writeDocstringForCode.title%",
         "group": "Continue"
       },
       {
         "command": "continue.fixCode",
         "category": "Continue",
-        "title": "Fix this Code",
+        "title": "%command.continue.fixCode.title%",
         "group": "Continue"
       },
       {
         "command": "continue.optimizeCode",
         "category": "Continue",
-        "title": "Optimize this Code",
+        "title": "%command.continue.optimizeCode.title%",
         "group": "Continue"
       },
       {
         "command": "continue.fixGrammar",
         "category": "Continue",
-        "title": "Fix Grammar / Spelling",
+        "title": "%command.continue.fixGrammar.title%",
         "group": "Continue"
       },
       {
         "command": "continue.codebaseForceReIndex",
         "category": "Continue",
-        "title": "Codebase Force Re-Index",
+        "title": "%command.continue.codebaseForceReIndex.title%",
         "group": "Continue"
       },
       {
         "command": "continue.rebuildCodebaseIndex",
         "category": "Continue",
-        "title": "Rebuild codebase index",
+        "title": "%command.continue.rebuildCodebaseIndex.title%",
         "group": "Continue"
       },
       {
         "command": "continue.docsIndex",
         "category": "Continue",
-        "title": "Docs Index",
+        "title": "%command.continue.docsIndex.title%",
         "group": "Continue"
       },
       {
         "command": "continue.docsReIndex",
         "category": "Continue",
-        "title": "Docs Force Re-Index",
+        "title": "%command.continue.docsReIndex.title%",
         "group": "Continue"
       },
       {
         "command": "continue.focusContinueInput",
         "category": "Continue",
-        "title": "Focus Continue Chat",
+        "title": "%command.continue.focusContinueInputPalette.title%",
         "group": "Continue"
       },
       {
         "command": "continue.enterEnterpriseLicenseKey",
         "category": "Continue",
-        "title": "Enter Enterprise License Key",
+        "title": "%command.continue.enterEnterpriseLicenseKey.title%",
         "group": "Continue"
       },
       {
         "command": "continue.toggleNextEditEnabled",
-        "title": "Continue: Toggle Next Edit"
+        "title": "%command.continue.toggleNextEditEnabled.title%"
       },
       {
         "command": "continue.nextEditWindow.hideNextEditSuggestion",
         "category": "Continue",
-        "title": "Hide Next Edit Suggestion"
+        "title": "%command.continue.hideNextEditSuggestion.title%"
       },
       {
         "command": "continue.nextEditWindow.acceptNextEditSuggestion",
         "category": "Continue",
-        "title": "Accept Next Edit Suggestion"
+        "title": "%command.continue.acceptNextEditSuggestion.title%"
       },
       {
         "command": "continue.forceNextEdit",
         "category": "Continue",
-        "title": "Continue: Force Next Edit"
+        "title": "%command.continue.forceNextEdit.title%"
       },
       {
         "command": "continue.acceptJump",
         "category": "Continue",
-        "title": "Continue: Accept Jump Suggestion"
+        "title": "%command.continue.acceptJump.title%"
       },
       {
         "command": "continue.rejectJump",
         "category": "Continue",
-        "title": "Continue: Reject Jump Suggestion"
+        "title": "%command.continue.rejectJump.title%"
       },
       {
         "command": "continue.generateRule",
         "category": "Continue",
-        "title": "Generate Rule",
+        "title": "%command.continue.generateRule.title%",
         "group": "Continue"
       },
       {
         "command": "continue.openInNewWindow",
         "category": "Continue",
-        "title": "Open in new window",
+        "title": "%command.continue.openInNewWindow.title%",
         "group": "Continue"
       }
     ],
@@ -448,7 +448,7 @@
       },
       {
         "command": "continue.focusEdit",
-        "title": "Edit code with natural language",
+        "title": "%keybinding.continue.focusEdit.title%",
         "mac": "cmd+i",
         "key": "ctrl+i"
       },
@@ -516,7 +516,7 @@
     "submenus": [
       {
         "id": "continue.continueSubMenu",
-        "label": "Continue"
+        "label": "%submenu.continue.label%"
       }
     ],
     "menus": {
@@ -618,14 +618,14 @@
       "activitybar": [
         {
           "id": "continue",
-          "title": "Continue",
+          "title": "%viewsContainer.continue.activitybar.title%",
           "icon": "media/sidebar-icon.png"
         }
       ],
       "panel": [
         {
           "id": "continueConsole",
-          "title": "Continue Console",
+          "title": "%viewsContainer.continueConsole.panel.title%",
           "icon": "$(window)"
         }
       ]
@@ -635,7 +635,7 @@
         {
           "type": "webview",
           "id": "continue.continueGUIView",
-          "name": "Continue",
+          "name": "%view.continue.continueGUIView.name%",
           "icon": "media/sidebar-icon.png",
           "visibility": "visible"
         }
@@ -644,7 +644,7 @@
         {
           "type": "webview",
           "id": "continue.continueConsoleView",
-          "name": "Continue Console",
+          "name": "%view.continueConsole.continueConsoleView.name%",
           "icon": "$(window)",
           "visibility": "visible",
           "when": "config.continue.enableConsole"

@@ -3,6 +3,7 @@ import { EXTENSION_NAME } from "core/control-plane/env";
 import * as vscode from "vscode";
 
 import { Battery } from "../util/battery";
+import { localize } from "../util/localization";
 import { getMetaKeyLabel } from "../util/util";
 import {
   CONTINUE_WORKSPACE_KEY,
@@ -15,15 +16,28 @@ export enum StatusBarStatus {
   Paused,
 }
 
+const DISABLE_AUTOCOMPLETE_LABEL = localize(
+  "$(circle-slash) Disable autocomplete",
+  "$(circle-slash) 禁用自动补全",
+);
+const ENABLE_AUTOCOMPLETE_LABEL = localize(
+  "$(check) Enable autocomplete",
+  "$(check) 启用自动补全",
+);
+const PAUSE_AUTOCOMPLETE_LABEL = localize(
+  "$(debug-pause) Pause autocomplete",
+  "$(debug-pause) 暂停自动补全",
+);
+
 export const quickPickStatusText = (status: StatusBarStatus | undefined) => {
   switch (status) {
     case undefined:
     case StatusBarStatus.Disabled:
-      return "$(circle-slash) Disable autocomplete";
+      return DISABLE_AUTOCOMPLETE_LABEL;
     case StatusBarStatus.Enabled:
-      return "$(check) Enable autocomplete";
+      return ENABLE_AUTOCOMPLETE_LABEL;
     case StatusBarStatus.Paused:
-      return "$(debug-pause) Pause autocomplete";
+      return PAUSE_AUTOCOMPLETE_LABEL;
   }
 };
 
@@ -31,11 +45,11 @@ export const getStatusBarStatusFromQuickPickItemLabel = (
   label: string,
 ): StatusBarStatus | undefined => {
   switch (label) {
-    case "$(circle-slash) Disable autocomplete":
+    case DISABLE_AUTOCOMPLETE_LABEL:
       return StatusBarStatus.Disabled;
-    case "$(check) Enable autocomplete":
+    case ENABLE_AUTOCOMPLETE_LABEL:
       return StatusBarStatus.Enabled;
-    case "$(debug-pause) Pause autocomplete":
+    case PAUSE_AUTOCOMPLETE_LABEL:
       return StatusBarStatus.Paused;
     default:
       return undefined;
@@ -48,7 +62,10 @@ const statusBarItemText = (
   error?: boolean,
 ) => {
   if (error) {
-    return "$(alert) Continue (config error)";
+    return localize(
+      "$(alert) Continue (config error)",
+      "$(alert) Continue（配置错误）",
+    );
   }
 
   let text: string;
@@ -87,15 +104,18 @@ const statusBarItemTooltip = (status: StatusBarStatus | undefined) => {
   switch (status) {
     case undefined:
     case StatusBarStatus.Disabled:
-      return "Click to enable tab autocomplete";
+      return localize(
+        "Click to enable tab autocomplete",
+        "点击以启用 Tab 自动补全",
+      );
     case StatusBarStatus.Enabled:
       const config = vscode.workspace.getConfiguration(EXTENSION_NAME);
       const nextEditEnabled = config.get<boolean>("enableNextEdit") ?? false;
       return nextEditEnabled
-        ? "Next Edit is enabled"
-        : "Tab autocomplete is enabled";
+        ? localize("Next Edit is enabled", "Next Edit 已启用")
+        : localize("Tab autocomplete is enabled", "Tab 自动补全已启用");
     case StatusBarStatus.Paused:
-      return "Tab autocomplete is paused";
+      return localize("Tab autocomplete is paused", "Tab 自动补全已暂停");
   }
 };
 
@@ -203,12 +223,12 @@ export function getAutocompleteStatusBarDescription(
     return undefined;
   }
 
-  let description = "Current autocomplete model";
+  let description = localize("Current autocomplete model", "当前自动补全模型");
 
   // Only set for Mistral since our default config includes Codestral without
   // an API key
   if ((apiKey === undefined || apiKey === "") && providerName === "mistral") {
-    description += " (Missing API key)";
+    description += localize(" (Missing API key)", "（缺少 API Key）");
   }
 
   return description;
@@ -219,7 +239,7 @@ export function getAutocompleteStatusBarTitle(
   { title }: ILLM,
 ): string {
   if (!title) {
-    return "Unnamed Model";
+    return localize("Unnamed Model", "未命名模型");
   }
 
   if (title === selected) {
@@ -229,9 +249,14 @@ export function getAutocompleteStatusBarTitle(
   return title;
 }
 
-const USE_FIM_MENU_ITEM_LABEL = "$(export) Use FIM autocomplete over Next Edit";
-const USE_NEXT_EDIT_MENU_ITEM_LABEL =
-  "$(sparkle) Use Next Edit over FIM autocomplete";
+const USE_FIM_MENU_ITEM_LABEL = localize(
+  "$(export) Use FIM autocomplete over Next Edit",
+  "$(export) 使用 FIM 自动补全替代 Next Edit",
+);
+const USE_NEXT_EDIT_MENU_ITEM_LABEL = localize(
+  "$(sparkle) Use Next Edit over FIM autocomplete",
+  "$(sparkle) 使用 Next Edit 替代 FIM 自动补全",
+);
 
 // Shows what items get rendered in the autocomplete menu.
 export function getNextEditMenuItems(

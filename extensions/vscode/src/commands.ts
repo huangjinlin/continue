@@ -46,6 +46,7 @@ import {
   addHighlightedCodeToContext,
 } from "./util/addCode";
 import { Battery } from "./util/battery";
+import { localize } from "./util/localization";
 import { getMetaKeyLabel } from "./util/util";
 import { openEditorAndRevealRange } from "./util/vscode";
 import { VsCodeIde } from "./VsCodeIde";
@@ -179,12 +180,18 @@ async function resolvePromptoSessionId(
 
   if (matchingSessions.length > 1) {
     throw new Error(
-      `Multiple Continue sessions found with the title "${sessionTitle}". Use a unique title or set prompto.continueSessionId instead.`,
+      localize(
+        `Multiple Continue sessions found with the title "${sessionTitle}". Use a unique title or set prompto.continueSessionId instead.`,
+        `找到了多个标题为“${sessionTitle}”的 Continue 会话。请使用唯一标题，或改为设置 prompto.continueSessionId。`,
+      ),
     );
   }
 
   throw new Error(
-    `No Continue session found with the title "${sessionTitle}".`,
+    localize(
+      `No Continue session found with the title "${sessionTitle}".`,
+      `未找到标题为“${sessionTitle}”的 Continue 会话。`,
+    ),
   );
 }
 
@@ -509,14 +516,20 @@ const getCommandsMap: (
 
       if (!sessionId) {
         void vscode.window.showErrorMessage(
-          "No session ID found. Please start or open a Continue chat session first.",
+          localize(
+            "No session ID found. Please start or open a Continue chat session first.",
+            "未找到会话 ID。请先启动或打开一个 Continue 聊天会话。",
+          ),
         );
         return;
       }
 
       await vscode.env.clipboard.writeText(sessionId);
       void vscode.window.showInformationMessage(
-        `Copied current Continue session ID: ${sessionId}`,
+        localize(
+          `Copied current Continue session ID: ${sessionId}`,
+          `已复制当前 Continue 会话 ID：${sessionId}`,
+        ),
       );
     },
 
@@ -526,12 +539,19 @@ const getCommandsMap: (
       const input = args?.input;
 
       if (!input?.trim()) {
-        throw new Error("Prompt input is required.");
+        throw new Error(
+          localize("Prompt input is required.", "必须提供提示词输入。"),
+        );
       }
 
       const isReady = await ensureContinueSidebarReady(sidebar);
       if (!isReady) {
-        throw new Error("Continue chat view did not become ready in time.");
+        throw new Error(
+          localize(
+            "Continue chat view did not become ready in time.",
+            "Continue 聊天视图未能在限定时间内就绪。",
+          ),
+        );
       }
 
       const sessionId = await resolvePromptoSessionId(core, args);
@@ -551,7 +571,10 @@ const getCommandsMap: (
       }
       if (!sessionId) {
         void vscode.window.showErrorMessage(
-          "No session ID found. Please start a new session first.",
+          localize(
+            "No session ID found. Please start a new session first.",
+            "未找到会话 ID。请先新建一个会话。",
+          ),
         );
         return;
       }
@@ -560,7 +583,7 @@ const getCommandsMap: (
         canSelectFolders: true,
         canSelectFiles: false,
         canSelectMany: false,
-        openLabel: "Select Destination Folder",
+        openLabel: localize("Select Destination Folder", "选择目标文件夹"),
       });
       if (!destinationFolder || destinationFolder.length === 0) {
         return;
@@ -574,7 +597,10 @@ const getCommandsMap: (
           outputDir: destinationFolder[0].fsPath,
         });
       } catch (error) {
-        const errorMessage = `Failed to save session: ${error instanceof Error ? error.message : String(error)}`;
+        const errorMessage = localize(
+          `Failed to save session: ${error instanceof Error ? error.message : String(error)}`,
+          `保存会话失败：${error instanceof Error ? error.message : String(error)}`,
+        );
         void vscode.window.showErrorMessage(errorMessage);
       }
     },
@@ -586,7 +612,7 @@ const getCommandsMap: (
     ) => {
       if (!sessionId) {
         sessionId = await vscode.window.showInputBox({
-          prompt: "Enter the Session ID",
+          prompt: localize("Enter the Session ID", "输入会话 ID"),
         });
       }
       void sidebar.webviewProtocol?.request("focusContinueSessionId", {
@@ -704,6 +730,19 @@ const getCommandsMap: (
 
       const config = vscode.workspace.getConfiguration(EXTENSION_NAME);
       const quickPick = vscode.window.createQuickPick();
+      const openSettingsLabel = localize(
+        "$(gear) Open settings",
+        "$(gear) 打开设置",
+      );
+      const openChatLabel = localize(
+        "$(comment) Open chat",
+        "$(comment) 打开聊天",
+      );
+      const openFullScreenChatLabel = localize(
+        "$(screen-full) Open full screen chat",
+        "$(screen-full) 打开全屏聊天",
+      );
+      const switchModelLabel = localize("Switch model", "切换模型");
 
       const { config: continueConfig } = await configHandler.loadConfig();
       const autocompleteModels =
@@ -738,14 +777,14 @@ const getCommandsMap: (
 
       quickPick.items = [
         {
-          label: "$(gear) Open settings",
+          label: openSettingsLabel,
         },
         {
-          label: "$(comment) Open chat",
+          label: openChatLabel,
           description: getMetaKeyLabel() + " + L",
         },
         {
-          label: "$(screen-full) Open full screen chat",
+          label: openFullScreenChatLabel,
           description:
             getMetaKeyLabel() + " + K, " + getMetaKeyLabel() + " + M",
         },
@@ -757,7 +796,7 @@ const getCommandsMap: (
         ...getNextEditMenuItems(currentStatus, nextEditEnabled),
         {
           kind: vscode.QuickPickItemKind.Separator,
-          label: "Switch model",
+          label: switchModelLabel,
         },
         ...autocompleteModels.map((model) => ({
           label: getAutocompleteStatusBarTitle(selected, model),
@@ -789,11 +828,11 @@ const getCommandsMap: (
               title: selectedOption,
             });
           }
-        } else if (selectedOption === "$(comment) Open chat") {
+        } else if (selectedOption === openChatLabel) {
           vscode.commands.executeCommand("continue.focusContinueInput");
-        } else if (selectedOption === "$(screen-full) Open full screen chat") {
+        } else if (selectedOption === openFullScreenChatLabel) {
           vscode.commands.executeCommand("continue.openInNewWindow");
-        } else if (selectedOption === "$(gear) Open settings") {
+        } else if (selectedOption === openSettingsLabel) {
           vscode.commands.executeCommand("continue.navigateTo", "/config");
         }
 
@@ -818,15 +857,21 @@ const getCommandsMap: (
       try {
         if (!isModelInstaller(llmProvider)) {
           const msg = llmProvider
-            ? `LLM provider '${llmProvider.providerName}' does not support installing models`
-            : "Missing LLM Provider";
+            ? localize(
+                `LLM provider '${llmProvider.providerName}' does not support installing models`,
+                `LLM 提供方“${llmProvider.providerName}”不支持安装模型。`,
+              )
+            : localize("Missing LLM Provider", "缺少 LLM 提供方");
           throw new Error(msg);
         }
         await installModelWithProgress(modelName, llmProvider);
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
         vscode.window.showErrorMessage(
-          `Failed to install '${modelName}': ${message}`,
+          localize(
+            `Failed to install '${modelName}': ${message}`,
+            `安装“${modelName}”失败：${message}`,
+          ),
         );
       }
     },
@@ -849,11 +894,14 @@ const getCommandsMap: (
 
       void vscode.window
         .showInformationMessage(
-          "Your config.json has been converted to the new config.yaml format. If you need to switch back to config.json, you can delete or rename config.yaml.",
-          "Read the docs",
+          localize(
+            "Your config.json has been converted to the new config.yaml format. If you need to switch back to config.json, you can delete or rename config.yaml.",
+            "你的 config.json 已转换为新的 config.yaml 格式。如果需要切回 config.json，可以删除或重命名 config.yaml。",
+          ),
+          localize("Read the docs", "阅读文档"),
         )
         .then(async (selection) => {
-          if (selection === "Read the docs") {
+          if (selection === localize("Read the docs", "阅读文档")) {
             await vscode.env.openExternal(
               vscode.Uri.parse("https://docs.continue.dev/yaml-migration"),
             );
@@ -864,10 +912,13 @@ const getCommandsMap: (
       captureCommandTelemetry("enterEnterpriseLicenseKey");
 
       const licenseKey = await vscode.window.showInputBox({
-        prompt: "Enter your enterprise license key",
+        prompt: localize(
+          "Enter your enterprise license key",
+          "输入你的企业版许可证密钥",
+        ),
         password: true,
         ignoreFocusOut: true,
-        placeHolder: "License key",
+        placeHolder: localize("License key", "许可证密钥"),
       });
 
       if (!licenseKey) {
@@ -881,18 +932,27 @@ const getCommandsMap: (
 
         if (isValid) {
           void vscode.window.showInformationMessage(
-            "Enterprise license key successfully validated and saved. Reloading window.",
+            localize(
+              "Enterprise license key successfully validated and saved. Reloading window.",
+              "企业版许可证密钥已验证并保存成功。正在重新加载窗口。",
+            ),
           );
           await new Promise((resolve) => setTimeout(resolve, 1000));
           await vscode.commands.executeCommand("workbench.action.reloadWindow");
         } else {
           void vscode.window.showErrorMessage(
-            "Invalid license key. Please check your license key and try again.",
+            localize(
+              "Invalid license key. Please check your license key and try again.",
+              "许可证密钥无效。请检查后重试。",
+            ),
           );
         }
       } catch (error) {
         void vscode.window.showErrorMessage(
-          `Failed to set enterprise license key: ${error instanceof Error ? error.message : String(error)}`,
+          localize(
+            `Failed to set enterprise license key: ${error instanceof Error ? error.message : String(error)}`,
+            `设置企业版许可证密钥失败：${error instanceof Error ? error.message : String(error)}`,
+          ),
         );
       }
     },
@@ -906,7 +966,10 @@ const getCommandsMap: (
 
       if (!tabAutocompleteEnabled) {
         vscode.window.showInformationMessage(
-          "Please enable tab autocomplete first to use Next Edit",
+          localize(
+            "Please enable tab autocomplete first to use Next Edit",
+            "请先启用 Tab 自动补全后再使用 Next Edit。",
+          ),
         );
         return;
       }
@@ -1010,7 +1073,10 @@ async function installModelWithProgress(
   return vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: `Installing model '${modelName}'`,
+      title: localize(
+        `Installing model '${modelName}'`,
+        `正在安装模型“${modelName}”`,
+      ),
       cancellable: true,
     },
     async (windowProgress, token) => {

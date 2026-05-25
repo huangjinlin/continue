@@ -40,6 +40,7 @@ import {
 import { Battery } from "../util/battery";
 import { FileSearch } from "../util/FileSearch";
 import { VsCodeIdeUtils } from "../util/ideUtils";
+import { localize } from "../util/localization";
 import {
   CONTINUE_DATA_PATH_KEY,
   CONTINUE_WORKSPACE_KEY,
@@ -139,18 +140,23 @@ export class VsCodeExtension {
     ) {
       vscode.window
         .showWarningMessage(
-          `The current autocomplete model (${autocompleteModel?.title || "unknown"}) does not support Next Edit.`,
-          "Disable Next Edit",
-          "Select different model",
+          localize(
+            `The current autocomplete model (${autocompleteModel?.title || "unknown"}) does not support Next Edit.`,
+            `当前自动补全模型（${autocompleteModel?.title || "unknown"}）不支持 Next Edit。`,
+          ),
+          localize("Disable Next Edit", "禁用 Next Edit"),
+          localize("Select different model", "选择其他模型"),
         )
         .then((selection) => {
-          if (selection === "Disable Next Edit") {
+          if (selection === localize("Disable Next Edit", "禁用 Next Edit")) {
             vscodeConfig.update(
               "enableNextEdit",
               false,
               vscode.ConfigurationTarget.Global,
             );
-          } else if (selection === "Select different model") {
+          } else if (
+            selection === localize("Select different model", "选择其他模型")
+          ) {
             vscode.commands.executeCommand(
               "continue.openTabAutocompleteConfigMenu",
             );
@@ -455,11 +461,14 @@ export class VsCodeExtension {
 
         void vscode.window
           .showInformationMessage(
-            "Reload the VS Code window to apply the updated Continue data directory.",
-            "Reload Window",
+            localize(
+              "Reload the VS Code window to apply the updated Continue data directory.",
+              "请重新加载 VS Code 窗口以应用更新后的 Continue 数据目录。",
+            ),
+            localize("Reload Window", "重新加载窗口"),
           )
           .then((selection) => {
-            if (selection === "Reload Window") {
+            if (selection === localize("Reload Window", "重新加载窗口")) {
               void vscode.commands.executeCommand(
                 "workbench.action.reloadWindow",
               );

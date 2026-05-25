@@ -8,6 +8,7 @@ import { Telemetry } from "core/util/posthog";
 import * as vscode from "vscode";
 
 import { SentryLogger } from "core/util/sentry/SentryLogger";
+import { localize } from "./util/localization";
 import { getExtensionVersion } from "./util/util";
 export { default as buildTimestamp } from "./.buildTimestamp";
 
@@ -31,14 +32,17 @@ export function activate(context: vscode.ExtensionContext) {
     );
     vscode.window
       .showWarningMessage(
-        "Error activating the Continue extension.",
-        "View Logs",
-        "Retry",
+        localize(
+          "Error activating the Continue extension.",
+          "激活 Continue 扩展时出错。",
+        ),
+        localize("View Logs", "查看日志"),
+        localize("Retry", "重试"),
       )
       .then((selection) => {
-        if (selection === "View Logs") {
+        if (selection === localize("View Logs", "查看日志")) {
           vscode.commands.executeCommand("continue.viewLogs");
-        } else if (selection === "Retry") {
+        } else if (selection === localize("Retry", "重试")) {
           // Reload VS Code window
           vscode.commands.executeCommand("workbench.action.reloadWindow");
         }

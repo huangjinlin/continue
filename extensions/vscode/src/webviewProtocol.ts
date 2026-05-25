@@ -8,6 +8,7 @@ import * as vscode from "vscode";
 import { IMessenger } from "../../../core/protocol/messenger";
 
 import { handleLLMError } from "./util/errorHandling";
+import { localize } from "./util/localization";
 
 export class VsCodeWebviewProtocol
   implements IMessenger<FromWebviewProtocol, ToWebviewProtocol>
@@ -126,11 +127,17 @@ export class VsCodeWebviewProtocol
             }
 
             vscode.window
-              .showInformationMessage(message, "Add API Key", "Use Local Model")
+              .showInformationMessage(
+                message,
+                localize("Add API Key", "添加 API Key"),
+                localize("Use Local Model", "使用本地模型"),
+              )
               .then((selection) => {
-                if (selection === "Add API Key") {
+                if (selection === localize("Add API Key", "添加 API Key")) {
                   this.request("setupApiKey", undefined);
-                } else if (selection === "Use Local Model") {
+                } else if (
+                  selection === localize("Use Local Model", "使用本地模型")
+                ) {
                   this.request("setupLocalConfig", undefined);
                 }
               });

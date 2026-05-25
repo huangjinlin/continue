@@ -14,6 +14,7 @@ import {
   showSuggestion as showSuggestionInEditor,
 } from "../suggestions";
 
+import { localize } from "./localization";
 import { getUniqueId, openEditorAndRevealRange } from "./vscode";
 
 import type { Range, Thread } from "core";
@@ -251,7 +252,10 @@ export class VsCodeIdeUtils {
 
     // If not, ask user for secret
     secret = await vscode.window.showInputBox({
-      prompt: `Either enter secret for ${key} or press enter to try Continue for free.`,
+      prompt: localize(
+        `Either enter secret for ${key} or press enter to try Continue for free.`,
+        `请输入 ${key} 对应的密钥，或直接按回车免费试用 Continue。`,
+      ),
       password: true,
     });
 
@@ -386,7 +390,10 @@ export class VsCodeIdeUtils {
 
     if (!session) {
       vscode.window.showWarningMessage(
-        "No active debug session found, therefore no debug context will be provided for the llm.",
+        localize(
+          "No active debug session found, therefore no debug context will be provided for the llm.",
+          "未找到活动调试会话，因此不会向模型提供调试上下文。",
+        ),
       );
       return "";
     }

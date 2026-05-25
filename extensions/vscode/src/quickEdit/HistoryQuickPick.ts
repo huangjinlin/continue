@@ -1,4 +1,6 @@
-import { QuickPickItem, window, ExtensionContext } from "vscode";
+import { ExtensionContext, QuickPickItem, window } from "vscode";
+
+import { localize } from "../util/localization";
 
 const HISTORY_KEY = "quickEditHistory";
 const MAX_HISTORY_LENGTH = 50;
@@ -34,8 +36,8 @@ export async function getHistoryQuickPickVal({
     .reverse();
 
   const selectedItem = await window.showQuickPick(historyItems, {
-    title: "History",
-    placeHolder: "Select a previous prompt",
+    title: localize("History", "历史记录"),
+    placeHolder: localize("Select a previous prompt", "选择一条之前的提示词"),
   });
 
   return selectedItem?.label;

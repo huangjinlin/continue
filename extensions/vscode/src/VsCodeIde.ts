@@ -15,6 +15,7 @@ import {
 import { Repository } from "./otherExtensions/git";
 import { SecretStorage } from "./stubs/SecretStorage";
 import { VsCodeIdeUtils } from "./util/ideUtils";
+import { localize } from "./util/localization";
 import { getExtensionVersion, isExtensionPrerelease } from "./util/util";
 import { getExtensionUri, openEditorAndRevealRange } from "./util/vscode";
 import { VsCodeWebviewProtocol } from "./webviewProtocol";
@@ -152,8 +153,11 @@ class VsCodeIde implements IDE {
 
     switch (type) {
       case "error":
-        return showErrorMessage(message, "Show logs").then((selection) => {
-          if (selection === "Show logs") {
+        return showErrorMessage(
+          message,
+          localize("Show logs", "查看日志"),
+        ).then((selection) => {
+          if (selection === localize("Show logs", "查看日志")) {
             vscode.commands.executeCommand("workbench.action.toggleDevTools");
           }
         });
