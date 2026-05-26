@@ -5,6 +5,7 @@ import { analyzeError } from "../../util/errorAnalysis";
 import { selectSelectedChatModel } from "../slices/configSlice";
 import { setDialogMessage, setShowDialog } from "../slices/uiSlice";
 import { ThunkApiType } from "../store";
+import { hasCurrentToolCalls } from "../util";
 import { cancelStream } from "./cancelStream";
 import { saveCurrentSession } from "./session";
 
@@ -12,7 +13,7 @@ export const streamThunkWrapper = createAsyncThunk<
   void,
   () => Promise<void>,
   ThunkApiType
->("chat/streamWrapper", async (runStream, { dispatch, getState }) => {
+>("chat/streamWrapper", async (runStream, { dispatch, getState, extra }) => {
   try {
     await runStream();
     const state = getState();
@@ -23,6 +24,16 @@ export const streamThunkWrapper = createAsyncThunk<
           generateTitle: true,
         }),
       );
+
+      if (
+        !state.session.isStreaming &&
+        !hasCurrentToolCalls(state.session.history)
+      ) {
+        void extra.ideMessenger.request(
+          "notifyOnChatResponseCompleted",
+          undefined,
+        );
+      }
     }
   } catch (e) {
     const state = getState();

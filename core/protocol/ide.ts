@@ -78,6 +78,7 @@ export type ToIdeFromWebviewOrCoreProtocol = {
     Parameters<IDE["showToast"]>,
     Awaited<ReturnType<IDE["showToast"]>>,
   ];
+  notifyOnChatResponseCompleted: [undefined, void];
   getGitRootPath: [{ dir: string }, string | undefined];
   listDir: [{ dir: string }, [string, FileType][]];
   getFileStats: [{ files: string[] }, FileStatsMap];

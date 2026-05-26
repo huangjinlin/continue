@@ -20,6 +20,7 @@ import {
   sanitizeShellArgument,
   validateGitHubRepoUrl,
 } from "core/util/sanitization";
+import { execFile } from "node:child_process";
 import * as vscode from "vscode";
 
 import { ApplyManager } from "../apply";
@@ -31,6 +32,7 @@ import {
   WorkOsAuthProvider,
 } from "../stubs/WorkOsAuthProvider";
 import { handleLLMError } from "../util/errorHandling";
+import { localize } from "../util/localization";
 import { showTutorial } from "../util/tutorial";
 import { getExtensionUri } from "../util/vscode";
 import { VsCodeIde } from "../VsCodeIde";
@@ -41,6 +43,62 @@ import { VsCodeExtension } from "./VsCodeExtension";
 
 type ToIdeOrWebviewFromCoreProtocol = ToIdeFromCoreProtocol &
   ToWebviewFromCoreProtocol;
+
+function getWindowsToastAppId(): string {
+  const appName = vscode.env.appName.toLowerCase();
+
+  if (appName.includes("insiders")) {
+    return "Microsoft.VisualStudioCode.Insiders";
+  }
+
+  return "Microsoft.VisualStudioCode";
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function showWindowsDesktopNotification(title: string, message: string): void {
+  if (process.platform !== "win32" || vscode.window.state.focused) {
+    return;
+  }
+
+  const toastXml = `<toast><visual><binding template="ToastGeneric"><text>${escapeXml(
+    title,
+  )}</text><text>${escapeXml(message)}</text></binding></visual></toast>`;
+  const appId = getWindowsToastAppId();
+  const script = `Add-Type -AssemblyName System.Runtime.WindowsRuntime
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
+[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] > $null
+$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+$xml.LoadXml(@"
+${toastXml}
+"@)
+$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('${appId}')
+$notifier.Show($toast)`;
+
+  const encodedScript = Buffer.from(script, "utf16le").toString("base64");
+
+  execFile(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-EncodedCommand",
+      encodedScript,
+    ],
+    { windowsHide: true },
+    () => {},
+  );
+}
 
 /**
  * A shared messenger class between Core and Webview
@@ -757,6 +815,15 @@ export class VsCodeMessenger {
     });
     this.onWebviewOrCore("showToast", (msg) => {
       this.ide.showToast(...msg.data);
+    });
+    this.onWebviewOrCore("notifyOnChatResponseCompleted", async () => {
+      showWindowsDesktopNotification(
+        localize("Continue", "Continue"),
+        localize(
+          "Continue has finished responding.",
+          "Continue 已完成本次回复。",
+        ),
+      );
     });
     this.onWebviewOrCore("getControlPlaneSessionInfo", async (msg) => {
       return getControlPlaneSessionInfo(
