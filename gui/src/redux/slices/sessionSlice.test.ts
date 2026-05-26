@@ -3,7 +3,11 @@ import { renderChatMessage } from "core/util/messageContent";
 import { v4 as uuidv4 } from "uuid";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { addToolCallDeltaToState } from "../../util/toolCallState";
-import { ChatHistoryItemWithMessageId, sessionSlice } from "./sessionSlice";
+import {
+  ChatHistoryItemWithMessageId,
+  restoreCheckpointAtIndex,
+  sessionSlice,
+} from "./sessionSlice";
 
 // Mock dependencies
 vi.mock("uuid");
@@ -449,6 +453,98 @@ describe("sessionSlice streamUpdate", () => {
       expect(newState.history).toHaveLength(2);
       expect(newState.history[1].message.role).toBe("assistant");
       expect(newState.history[1].toolCallStates).toHaveLength(1);
+    });
+
+    it("should restore checkpoint by removing the selected interaction and everything after it", () => {
+      const initialState = createInitialState();
+      initialState.history = [
+        {
+          message: {
+            role: "user",
+            content: "Question 1",
+            id: "user-1",
+          },
+          contextItems: [],
+        },
+        {
+          message: {
+            role: "assistant",
+            content: "Answer 1",
+            id: "assistant-1",
+          },
+          contextItems: [],
+        },
+        {
+          message: {
+            role: "user",
+            content: "Question 2",
+            id: "user-2",
+          },
+          contextItems: [],
+        },
+        {
+          message: {
+            role: "assistant",
+            content: "Answer 2",
+            id: "assistant-2",
+          },
+          contextItems: [],
+        },
+        {
+          message: {
+            role: "user",
+            content: "Question 3",
+            id: "user-3",
+          },
+          contextItems: [],
+        },
+        {
+          message: {
+            role: "assistant",
+            content: "Answer 3",
+            id: "assistant-3",
+          },
+          contextItems: [],
+        },
+      ];
+
+      const newState = sessionSlice.reducer(
+        initialState,
+        restoreCheckpointAtIndex(3),
+      );
+
+      expect(newState.history).toHaveLength(2);
+      expect(newState.history[0].message.content).toBe("Question 1");
+      expect(newState.history[1].message.content).toBe("Answer 1");
+    });
+
+    it("should clear the whole chat when restoring the first interaction checkpoint", () => {
+      const initialState = createInitialState();
+      initialState.history = [
+        {
+          message: {
+            role: "user",
+            content: "First question",
+            id: "user-1",
+          },
+          contextItems: [],
+        },
+        {
+          message: {
+            role: "assistant",
+            content: "First answer",
+            id: "assistant-1",
+          },
+          contextItems: [],
+        },
+      ];
+
+      const newState = sessionSlice.reducer(
+        initialState,
+        restoreCheckpointAtIndex(1),
+      );
+
+      expect(newState.history).toEqual([]);
     });
   });
 });

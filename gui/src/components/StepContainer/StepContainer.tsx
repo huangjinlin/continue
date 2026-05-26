@@ -1,10 +1,15 @@
+import { ArrowUturnLeftIcon } from "@heroicons/react/24/outline";
 import { ChatHistoryItem } from "core";
 import { renderChatMessage, stripImages } from "core/util/messageContent";
 import { useEffect, useState } from "react";
-import { useDispatch } from "react-redux";
-import { useAppSelector } from "../../redux/hooks";
+import { useAppDispatch, useAppSelector } from "../../redux/hooks";
 import { selectUIConfig } from "../../redux/slices/configSlice";
-import { deleteMessage } from "../../redux/slices/sessionSlice";
+import {
+  deleteMessage,
+  restoreCheckpointAtIndex,
+} from "../../redux/slices/sessionSlice";
+import { saveCurrentSession } from "../../redux/thunks/session";
+import HeaderButtonWithToolTip from "../gui/HeaderButtonWithToolTip";
 import ThinkingBlockPeek from "../mainInput/belowMainInput/ThinkingBlockPeek";
 import StyledMarkdownPreview from "../StyledMarkdownPreview";
 import ConversationSummary from "./ConversationSummary";
@@ -19,7 +24,7 @@ interface StepContainerProps {
 }
 
 export default function StepContainer(props: StepContainerProps) {
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
   const [isTruncated, setIsTruncated] = useState(false);
   const isStreaming = useAppSelector((state) => state.session.isStreaming);
   const uiConfig = useAppSelector(selectUIConfig);
@@ -37,6 +42,13 @@ export default function StepContainer(props: StepContainerProps) {
   const showResponseActions =
     (props.isLast || historyItemAfterThis?.message.role === "user") &&
     !(props.isLast && (isStreaming || props.item.toolCallStates));
+  const hasPreviousUserMessage = useAppSelector((state) =>
+    state.session.history
+      .slice(0, props.index)
+      .some((item) => item.message.role === "user"),
+  );
+  const showRestoreCheckpointButton =
+    showResponseActions && hasPreviousUserMessage && !isStreaming;
 
   useEffect(() => {
     if (!isStreaming) {
@@ -62,6 +74,17 @@ export default function StepContainer(props: StepContainerProps) {
     dispatch(deleteMessage(props.index));
   }
 
+  function onRestoreCheckpoint() {
+    dispatch(restoreCheckpointAtIndex(props.index));
+    void dispatch(
+      saveCurrentSession({
+        openNewSession: false,
+        generateTitle: false,
+        allowEmptyHistory: true,
+      }),
+    );
+  }
+
   function onContinueGeneration() {
     window.postMessage(
       {
@@ -75,7 +98,22 @@ export default function StepContainer(props: StepContainerProps) {
   }
 
   return (
-    <div>
+    <div className="group relative">
+      {showRestoreCheckpointButton && (
+        <div className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+          <HeaderButtonWithToolTip
+            text="删除当前互动及其后的互动"
+            onClick={onRestoreCheckpoint}
+            className="border-border bg-vsc-input-background pointer-events-auto border border-solid px-2 py-1 text-[11px] shadow-sm"
+          >
+            <div className="flex items-center gap-1 whitespace-nowrap text-xs">
+              <ArrowUturnLeftIcon className="h-3.5 w-3.5" />
+              <span>还原检查点</span>
+            </div>
+          </HeaderButtonWithToolTip>
+        </div>
+      )}
+
       <div
         className={`bg-background p-1 px-1.5 ${isBeforeLatestSummary ? "opacity-35" : ""}`}
       >

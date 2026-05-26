@@ -444,6 +444,34 @@ export const sessionSlice = createSlice({
       state.isPruned = false;
       state.contextPercentage = undefined;
     },
+    restoreCheckpointAtIndex: (state, action: PayloadAction<number>) => {
+      const restoreFromIndex = action.payload;
+
+      if (
+        restoreFromIndex < 0 ||
+        restoreFromIndex >= state.history.length ||
+        state.history[restoreFromIndex]?.message.role !== "assistant"
+      ) {
+        return;
+      }
+
+      const previousUserIndex = findLastIndex(
+        state.history,
+        (item, index) =>
+          index < restoreFromIndex && item.message.role === "user",
+      );
+
+      if (previousUserIndex < 0) {
+        state.history = [];
+      } else {
+        state.history = state.history.slice(0, previousUserIndex);
+      }
+
+      state.codeBlockApplyStates.curIndex = 0;
+      state.inlineErrorMessage = undefined;
+      state.isPruned = false;
+      state.contextPercentage = undefined;
+    },
     deleteCompaction: (state, action: PayloadAction<number>) => {
       // Removes the conversation summary from the specified message
       const historyItem = state.history[action.payload];
@@ -1068,6 +1096,7 @@ export const {
   clearDanglingMessages,
   setMainEditorContentTrigger,
   deleteMessage,
+  restoreCheckpointAtIndex,
   deleteCompaction,
   setIsGatheringContext,
   resetNextCodeBlockToApplyIndex,

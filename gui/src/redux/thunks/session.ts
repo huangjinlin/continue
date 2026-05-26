@@ -229,13 +229,20 @@ function getChatTitleFromMessage(message: ChatMessage) {
 
 export const saveCurrentSession = createAsyncThunk<
   void,
-  { openNewSession: boolean; generateTitle: boolean },
+  {
+    openNewSession: boolean;
+    generateTitle: boolean;
+    allowEmptyHistory?: boolean;
+  },
   ThunkApiType
 >(
   "session/saveCurrent",
-  async ({ openNewSession, generateTitle }, { dispatch, extra, getState }) => {
+  async (
+    { openNewSession, generateTitle, allowEmptyHistory = false },
+    { dispatch, extra, getState },
+  ) => {
     const session = getState().session; // assign to a variable so that even when current session changes, we have the reference to the old session
-    if (session.history.length === 0) {
+    if (session.history.length === 0 && !allowEmptyHistory) {
       return;
     }
 
@@ -248,7 +255,7 @@ export const saveCurrentSession = createAsyncThunk<
     // New session has already been dispatched
     // Now save previous session and update chat title if relevant
     let title = session.title;
-    if (title === NEW_SESSION_TITLE) {
+    if (title === NEW_SESSION_TITLE && session.history.length > 0) {
       if (
         !getState().config.config?.disableSessionTitles &&
         selectedChatModel
