@@ -6,6 +6,7 @@ import {
   MessageContent,
   PromptLog,
 } from "core";
+import { getVisualBridgeMessageMetadata } from "core/llm/visualBridge";
 import { describe, expect, it, vi } from "vitest";
 import { createMockStore, getEmptyRootState } from "../../util/test/mockStore";
 import { streamResponseThunk } from "./streamResponse";
@@ -216,6 +217,16 @@ describe("streamResponseThunk", () => {
         },
       ],
     });
+
+    const finalState = mockStore.getState() as RootState;
+    expect(
+      getVisualBridgeMessageMetadata(finalState.session.history[1].message),
+    ).toEqual(
+      expect.objectContaining({
+        bridgeModelTitle: "Qwen Vision Test",
+        summary: "1. 页面类型\n登录页面",
+      }),
+    );
   });
 
   it("should skip visual bridge for image-capable chat models", async () => {

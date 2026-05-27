@@ -29,6 +29,9 @@ interface ContinueInputBoxProps {
   appliedRules?: RuleMetadata[];
   hidden?: boolean;
   inputId: string; // used to keep track of things per input in redux
+  visualBridgeHint?: {
+    bridgeModelTitle: string;
+  };
 }
 
 const EDIT_DISALLOWED_CONTEXT_PROVIDERS = [
@@ -137,8 +140,16 @@ function ContinueInputBox(props: ContinueInputBoxProps) {
         </GradientBorder>
       </div>
 
-      {(appliedRules.length > 0 || contextItems.length > 0) && (
-        <div className="mt-2 flex flex-col">
+      {(props.visualBridgeHint ||
+        appliedRules.length > 0 ||
+        contextItems.length > 0) && (
+        <div className="mt-2 flex flex-col gap-1">
+          {props.visualBridgeHint && (
+            <div className="text-description px-2 text-xs">
+              已使用视觉桥接模型分析截图 ·{" "}
+              {props.visualBridgeHint.bridgeModelTitle}
+            </div>
+          )}
           <RulesPeek appliedRules={props.appliedRules} />
           <ContextItemsPeek
             contextItems={props.contextItems}

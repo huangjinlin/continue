@@ -4,13 +4,28 @@ import type {
   ILLM,
   LLMFullCompletionOptions,
   MessagePart,
+  VisualBridgeMessageMetadata,
 } from "..";
 
 import { renderChatMessage } from "../util/messageContent";
 
+export const VISUAL_BRIDGE_MESSAGE_METADATA_KEY = "visualBridge";
+
 export interface VisualBridgeContextResult {
   bridgeModelTitle: string;
   summary: string;
+}
+
+function isVisualBridgeMessageMetadata(
+  value: unknown,
+): value is VisualBridgeMessageMetadata {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as VisualBridgeMessageMetadata).bridgeModelTitle ===
+      "string" &&
+    typeof (value as VisualBridgeMessageMetadata).summary === "string"
+  );
 }
 
 const VISUAL_BRIDGE_PROMPT = `You are a vision bridge for a text-only coding model.
@@ -43,6 +58,26 @@ function isImagePart(part: MessagePart): boolean {
 
 export function messageContainsImages(message: ChatMessage): boolean {
   return Array.isArray(message.content) && message.content.some(isImagePart);
+}
+
+export function getVisualBridgeMessageMetadata(
+  message: Pick<ChatMessage, "metadata">,
+): VisualBridgeMessageMetadata | undefined {
+  const value = message.metadata?.[VISUAL_BRIDGE_MESSAGE_METADATA_KEY];
+  return isVisualBridgeMessageMetadata(value) ? value : undefined;
+}
+
+export function withVisualBridgeMessageMetadata<T extends ChatMessage>(
+  message: T,
+  metadata: VisualBridgeMessageMetadata,
+): T {
+  return {
+    ...message,
+    metadata: {
+      ...message.metadata,
+      [VISUAL_BRIDGE_MESSAGE_METADATA_KEY]: metadata,
+    },
+  };
 }
 
 export function resolveVisualBridgeModel(config: ContinueConfig): ILLM {

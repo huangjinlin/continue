@@ -4,6 +4,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { Editor, JSONContent } from "@tiptap/react";
 import { ChatHistoryItem, InputModifiers } from "core";
+import { getVisualBridgeMessageMetadata } from "core/llm/visualBridge";
 import { renderChatMessage } from "core/util/messageContent";
 import {
   useCallback,
@@ -337,6 +338,8 @@ export function Chat() {
         latestSummaryIndex !== -1 && index < latestSummaryIndex;
 
       if (message.role === "user") {
+        const visualBridgeMetadata = getVisualBridgeMessageMetadata(message);
+
         return (
           <ContinueInputBox
             onEnter={(editorState, modifiers) =>
@@ -348,6 +351,13 @@ export function Chat() {
             contextItems={contextItems}
             appliedRules={appliedRules}
             inputId={message.id}
+            visualBridgeHint={
+              visualBridgeMetadata
+                ? {
+                    bridgeModelTitle: visualBridgeMetadata.bridgeModelTitle,
+                  }
+                : undefined
+            }
           />
         );
       }

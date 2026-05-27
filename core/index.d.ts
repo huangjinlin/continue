@@ -1668,6 +1668,10 @@ export interface VisualBridgeContextResult {
   summary: string;
 }
 
+export interface VisualBridgeMessageMetadata extends VisualBridgeContextResult {
+  cachedAt?: string;
+}
+
 export type DefaultContextProvider = ContextProviderWithParams & {
   query?: string;
 };

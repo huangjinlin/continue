@@ -1,8 +1,18 @@
 import { createAsyncThunk, unwrapResult } from "@reduxjs/toolkit";
-import { ChatMessage, LLMFullCompletionOptions, ModelDescription } from "core";
+import {
+  ChatHistoryItem,
+  ChatMessage,
+  LLMFullCompletionOptions,
+  ModelDescription,
+  VisualBridgeMessageMetadata,
+} from "core";
 import { modelSupportsImages } from "core/llm/autodetect";
 import { getRuleId } from "core/llm/rules/getSystemMessageWithRules";
-import { messageContainsImages } from "core/llm/visualBridge";
+import {
+  getVisualBridgeMessageMetadata,
+  messageContainsImages,
+  withVisualBridgeMessageMetadata,
+} from "core/llm/visualBridge";
 import { ToCoreProtocol } from "core/protocol";
 import { BUILT_IN_GROUP_NAME } from "core/tools/builtIn";
 import { selectActiveTools } from "../selectors/selectActiveTools";
@@ -19,6 +29,7 @@ import {
   setIsPruned,
   setToolGenerated,
   streamUpdate,
+  updateHistoryItemAtIndex,
 } from "../slices/sessionSlice";
 import { ThunkApiType } from "../store";
 import { constructMessages } from "../util/constructMessages";
@@ -81,6 +92,16 @@ function getLastUserMessageIndex(messages: ChatMessage[]): number {
   return -1;
 }
 
+function getLastUserHistoryItemIndex(history: ChatHistoryItem[]): number {
+  for (let index = history.length - 1; index >= 0; index--) {
+    if (history[index].message.role === "user") {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
 function formatVisualBridgeSummary(options: {
   bridgeModelTitle: string;
   summary: string;
@@ -136,7 +157,10 @@ async function maybeInjectVisualBridgeSummary(options: {
   legacySlashCommandData?: ToCoreProtocol["llm/streamChat"][0]["legacySlashCommandData"];
   ideMessenger: ThunkApiType["extra"]["ideMessenger"];
   failOnBridgeError: boolean;
-}): Promise<ChatMessage[]> {
+}): Promise<{
+  messages: ChatMessage[];
+  metadataToCache?: VisualBridgeMessageMetadata;
+}> {
   const {
     messages,
     selectedChatModel,
@@ -146,7 +170,7 @@ async function maybeInjectVisualBridgeSummary(options: {
   } = options;
 
   if (legacySlashCommandData) {
-    return messages;
+    return { messages };
   }
 
   if (
@@ -157,17 +181,28 @@ async function maybeInjectVisualBridgeSummary(options: {
       selectedChatModel.capabilities,
     )
   ) {
-    return messages;
+    return { messages };
   }
 
   const lastUserMessageIndex = getLastUserMessageIndex(messages);
   if (lastUserMessageIndex === -1) {
-    return messages;
+    return { messages };
   }
 
   const lastUserMessage = messages[lastUserMessageIndex];
   if (!messageContainsImages(lastUserMessage)) {
-    return messages;
+    return { messages };
+  }
+
+  const cachedMetadata = getVisualBridgeMessageMetadata(lastUserMessage);
+  if (cachedMetadata) {
+    return {
+      messages: injectVisualBridgeSummary(
+        messages,
+        formatVisualBridgeSummary(cachedMetadata),
+      ),
+      metadataToCache: cachedMetadata,
+    };
   }
 
   const bridgeRes = await ideMessenger.request("llm/bridgeVisualContext", {
@@ -182,13 +217,21 @@ async function maybeInjectVisualBridgeSummary(options: {
     console.warn("Visual bridge failed, continuing without bridge context", {
       error: bridgeRes.error,
     });
-    return messages;
+    return { messages };
   }
 
-  return injectVisualBridgeSummary(
-    messages,
-    formatVisualBridgeSummary(bridgeRes.content),
-  );
+  const metadataToCache: VisualBridgeMessageMetadata = {
+    ...bridgeRes.content,
+    cachedAt: new Date().toISOString(),
+  };
+
+  return {
+    messages: injectVisualBridgeSummary(
+      messages,
+      formatVisualBridgeSummary(metadataToCache),
+    ),
+    metadataToCache,
+  };
 }
 
 export const streamNormalInput = createAsyncThunk<
@@ -291,8 +334,8 @@ export const streamNormalInput = createAsyncThunk<
       }),
     );
 
-    const messagesWithVisualBridge = state.config.config.experimental
-      ?.visualBridge?.enabled
+    const visualBridgeResult = state.config.config.experimental?.visualBridge
+      ?.enabled
       ? await maybeInjectVisualBridgeSummary({
           messages,
           selectedChatModel,
@@ -302,7 +345,32 @@ export const streamNormalInput = createAsyncThunk<
             state.config.config.experimental.visualBridge?.failOnBridgeError ??
             true,
         })
-      : messages;
+      : { messages };
+
+    const messagesWithVisualBridge = visualBridgeResult.messages;
+
+    const lastUserHistoryItemIndex = getLastUserHistoryItemIndex(
+      state.session.history,
+    );
+    if (
+      visualBridgeResult.metadataToCache &&
+      lastUserHistoryItemIndex !== -1 &&
+      !getVisualBridgeMessageMetadata(
+        state.session.history[lastUserHistoryItemIndex].message,
+      )
+    ) {
+      dispatch(
+        updateHistoryItemAtIndex({
+          index: lastUserHistoryItemIndex,
+          updates: {
+            message: withVisualBridgeMessageMetadata(
+              state.session.history[lastUserHistoryItemIndex].message,
+              visualBridgeResult.metadataToCache,
+            ),
+          },
+        }),
+      );
+    }
 
     dispatch(setActive());
     dispatch(setInlineErrorMessage(undefined));

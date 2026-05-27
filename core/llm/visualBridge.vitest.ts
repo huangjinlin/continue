@@ -3,8 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { ChatMessage, ContinueConfig, ILLM } from "..";
 import {
   bridgeVisualContext,
+  getVisualBridgeMessageMetadata,
   messageContainsImages,
   resolveVisualBridgeModel,
+  VISUAL_BRIDGE_MESSAGE_METADATA_KEY,
+  withVisualBridgeMessageMetadata,
 } from "./visualBridge";
 
 function createBridgeModel(overrides?: Partial<ILLM>): ILLM {
@@ -135,5 +138,24 @@ describe("visualBridge", () => {
         signal: new AbortController().signal,
       }),
     ).rejects.toThrow("at least one image");
+  });
+
+  it("reads and writes visual bridge message metadata", () => {
+    const message = withVisualBridgeMessageMetadata(createImageMessage(), {
+      bridgeModelTitle: "Qwen Vision Test",
+      summary: "1. 页面类型\n登录页面",
+      cachedAt: "2026-05-27T00:00:00.000Z",
+    });
+
+    expect(message.metadata?.[VISUAL_BRIDGE_MESSAGE_METADATA_KEY]).toEqual({
+      bridgeModelTitle: "Qwen Vision Test",
+      summary: "1. 页面类型\n登录页面",
+      cachedAt: "2026-05-27T00:00:00.000Z",
+    });
+    expect(getVisualBridgeMessageMetadata(message)).toEqual({
+      bridgeModelTitle: "Qwen Vision Test",
+      summary: "1. 页面类型\n登录页面",
+      cachedAt: "2026-05-27T00:00:00.000Z",
+    });
   });
 });
