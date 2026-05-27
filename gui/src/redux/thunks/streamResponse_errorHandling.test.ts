@@ -37,15 +37,48 @@ vi.mock(
 );
 
 import { unwrapResult } from "@reduxjs/toolkit";
+import { ModelDescription } from "core";
 import posthog from "posthog-js";
 import { resolveEditorContent } from "../../components/mainInput/TipTapEditor/utils/resolveEditorContent";
 import { MockIdeMessenger } from "../../context/MockIdeMessenger";
-import { getRootStateWithClaude } from "./streamResponse.test";
+import { RootState } from "../store";
 
 const mockGetBaseSystemMessage = vi.mocked(getBaseSystemMessage);
 
 const mockPosthog = vi.mocked(posthog);
 const mockResolveEditorContent = vi.mocked(resolveEditorContent);
+
+const mockDeepSeekModel: ModelDescription = {
+  title: "DeepSeek Main",
+  model: "deepseek-chat",
+  provider: "deepseek",
+  underlyingProviderName: "deepseek",
+};
+
+const mockClaudeModel: ModelDescription = {
+  title: "Claude 3.5 Sonnet",
+  model: "claude-3-5-sonnet-20241022",
+  provider: "anthropic",
+  underlyingProviderName: "anthropic",
+  completionOptions: { reasoningBudgetTokens: 2048 },
+};
+
+function getRootStateWithClaude(): RootState {
+  const state = getEmptyRootState();
+  return {
+    ...state,
+    config: {
+      ...state.config,
+      config: {
+        ...state.config.config,
+        selectedModelByRole: {
+          ...state.config.config.selectedModelByRole,
+          chat: mockClaudeModel,
+        },
+      },
+    },
+  };
+}
 
 // Mock editor state (what user types in the input)
 const mockEditorState: JSONContent = {
@@ -78,6 +111,84 @@ beforeEach(() => {
 });
 
 describe("streamResponseThunk", () => {
+  it("should surface visual bridge errors when failOnBridgeError is enabled", async () => {
+    const initialState = getRootStateWithClaude();
+    initialState.session.history = [
+      {
+        message: { id: "1", role: "user", content: "Hello" },
+        contextItems: [],
+      },
+    ];
+    initialState.config.config.experimental = {
+      ...initialState.config.config.experimental,
+      visualBridge: {
+        enabled: true,
+        modelTitle: "Qwen Vision Test",
+        failOnBridgeError: true,
+      },
+    };
+    initialState.config.config.selectedModelByRole.chat = mockDeepSeekModel;
+
+    mockResolveEditorContent.mockResolvedValueOnce({
+      selectedContextItems: [],
+      selectedCode: [],
+      content: [
+        {
+          type: "text",
+          text: "请根据截图还原页面",
+        },
+        {
+          type: "imageUrl",
+          imageUrl: {
+            url: "data:image/png;base64,abc",
+          },
+        },
+      ],
+      legacyCommandWithInput: undefined,
+    });
+
+    const mockStore = createMockStore(initialState);
+    const requestSpy = vi.spyOn(mockStore.mockIdeMessenger, "request");
+    const chatSpy = vi.spyOn(mockStore.mockIdeMessenger, "llmStreamChat");
+
+    requestSpy.mockImplementation(async (message, data) => {
+      if (message === "llm/bridgeVisualContext") {
+        return {
+          done: true,
+          status: "error",
+          error: "Visual bridge upstream failed",
+        } as any;
+      }
+
+      return await new MockIdeMessenger().request(message as any, data as any);
+    });
+
+    const result = await mockStore.dispatch(
+      streamResponseThunk({
+        editorState: mockEditorState,
+        modifiers: mockModifiers,
+      }) as any,
+    );
+
+    expect(result.type).toBe("chat/streamResponse/fulfilled");
+    expect(chatSpy).not.toHaveBeenCalled();
+    expect(
+      requestSpy.mock.calls.some((call) => call[0] === "llm/compileChat"),
+    ).toBe(false);
+
+    const finalState = mockStore.getState() as RootState;
+    expect(finalState.ui.showDialog).toBe(true);
+    expect(finalState.ui.dialogMessage).toEqual(
+      expect.objectContaining({
+        props: expect.objectContaining({
+          error: expect.objectContaining({
+            message: "Visual bridge upstream failed",
+          }),
+        }),
+      }),
+    );
+  });
+
   it("should throw error when no chat model is selected", async () => {
     const noModelState = getEmptyRootState();
     noModelState.session.history = [

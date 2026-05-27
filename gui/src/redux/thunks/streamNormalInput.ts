@@ -1,6 +1,8 @@
 import { createAsyncThunk, unwrapResult } from "@reduxjs/toolkit";
-import { LLMFullCompletionOptions, ModelDescription } from "core";
+import { ChatMessage, LLMFullCompletionOptions, ModelDescription } from "core";
+import { modelSupportsImages } from "core/llm/autodetect";
 import { getRuleId } from "core/llm/rules/getSystemMessageWithRules";
+import { messageContainsImages } from "core/llm/visualBridge";
 import { ToCoreProtocol } from "core/protocol";
 import { BUILT_IN_GROUP_NAME } from "core/tools/builtIn";
 import { selectActiveTools } from "../selectors/selectActiveTools";
@@ -67,6 +69,126 @@ function buildReasoningCompletionOptions(
   }
 
   return reasoningOptions;
+}
+
+function getLastUserMessageIndex(messages: ChatMessage[]): number {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    if (messages[index].role === "user") {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function formatVisualBridgeSummary(options: {
+  bridgeModelTitle: string;
+  summary: string;
+}): string {
+  return [
+    "",
+    "以下是视觉桥接模型对截图的结构化分析，请将其作为当前用户这轮请求的补充上下文。",
+    `桥接模型: ${options.bridgeModelTitle}`,
+    options.summary,
+  ].join("\n\n");
+}
+
+function injectVisualBridgeSummary(
+  messages: ChatMessage[],
+  summaryText: string,
+): ChatMessage[] {
+  const lastUserMessageIndex = getLastUserMessageIndex(messages);
+
+  if (lastUserMessageIndex === -1) {
+    return messages;
+  }
+
+  return messages.map((message, index) => {
+    if (index !== lastUserMessageIndex || message.role !== "user") {
+      return message;
+    }
+
+    if (typeof message.content === "string") {
+      return {
+        ...message,
+        content: message.content
+          ? `${message.content}${summaryText}`
+          : summaryText.trim(),
+      };
+    }
+
+    return {
+      ...message,
+      content: [
+        ...message.content,
+        {
+          type: "text",
+          text: summaryText,
+        },
+      ],
+    };
+  });
+}
+
+async function maybeInjectVisualBridgeSummary(options: {
+  messages: ChatMessage[];
+  selectedChatModel: ModelDescription;
+  legacySlashCommandData?: ToCoreProtocol["llm/streamChat"][0]["legacySlashCommandData"];
+  ideMessenger: ThunkApiType["extra"]["ideMessenger"];
+  failOnBridgeError: boolean;
+}): Promise<ChatMessage[]> {
+  const {
+    messages,
+    selectedChatModel,
+    legacySlashCommandData,
+    ideMessenger,
+    failOnBridgeError,
+  } = options;
+
+  if (legacySlashCommandData) {
+    return messages;
+  }
+
+  if (
+    modelSupportsImages(
+      selectedChatModel.provider,
+      selectedChatModel.model,
+      selectedChatModel.title,
+      selectedChatModel.capabilities,
+    )
+  ) {
+    return messages;
+  }
+
+  const lastUserMessageIndex = getLastUserMessageIndex(messages);
+  if (lastUserMessageIndex === -1) {
+    return messages;
+  }
+
+  const lastUserMessage = messages[lastUserMessageIndex];
+  if (!messageContainsImages(lastUserMessage)) {
+    return messages;
+  }
+
+  const bridgeRes = await ideMessenger.request("llm/bridgeVisualContext", {
+    message: lastUserMessage,
+  });
+
+  if (bridgeRes.status === "error") {
+    if (failOnBridgeError) {
+      throw new Error(bridgeRes.error);
+    }
+
+    console.warn("Visual bridge failed, continuing without bridge context", {
+      error: bridgeRes.error,
+    });
+    return messages;
+  }
+
+  return injectVisualBridgeSummary(
+    messages,
+    formatVisualBridgeSummary(bridgeRes.content),
+  );
 }
 
 export const streamNormalInput = createAsyncThunk<
@@ -169,11 +291,24 @@ export const streamNormalInput = createAsyncThunk<
       }),
     );
 
+    const messagesWithVisualBridge = state.config.config.experimental
+      ?.visualBridge?.enabled
+      ? await maybeInjectVisualBridgeSummary({
+          messages,
+          selectedChatModel,
+          legacySlashCommandData,
+          ideMessenger: extra.ideMessenger,
+          failOnBridgeError:
+            state.config.config.experimental.visualBridge?.failOnBridgeError ??
+            true,
+        })
+      : messages;
+
     dispatch(setActive());
     dispatch(setInlineErrorMessage(undefined));
 
     const precompiledRes = await extra.ideMessenger.request("llm/compileChat", {
-      messages,
+      messages: messagesWithVisualBridge,
       options: completionOptions,
     });
 
