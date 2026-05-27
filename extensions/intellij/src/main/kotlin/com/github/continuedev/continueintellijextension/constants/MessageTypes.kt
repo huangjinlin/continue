@@ -123,6 +123,7 @@ class MessageTypes {
             "llm/streamChat",
             "llm/listModels",
             "llm/compileChat",
+            "llm/bridgeVisualContext",
             "streamDiffLines",
             "getDiffLines",
             "chatDescriber/describe",

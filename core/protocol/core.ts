@@ -40,6 +40,7 @@ import {
   SlashCommandDescWithSource,
   StreamDiffLinesPayload,
   ToolCall,
+  VisualBridgeContextResult,
 } from "../";
 import { AutocompleteCodeSnippet } from "../autocomplete/snippets/types";
 import { GetLspDefinitionsFunction } from "../autocomplete/types";
@@ -251,6 +252,13 @@ export type ToCoreFromIdeOrWebviewProtocol = {
   "llm/compileChat": [
     { messages: ChatMessage[]; options: LLMFullCompletionOptions },
     CompiledMessagesResult,
+  ];
+  "llm/bridgeVisualContext": [
+    {
+      message: ChatMessage;
+      completionOptions?: LLMFullCompletionOptions;
+    },
+    VisualBridgeContextResult,
   ];
   "chatDescriber/describe": [
     {

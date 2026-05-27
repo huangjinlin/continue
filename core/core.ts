@@ -16,9 +16,10 @@ import { DataLogger } from "./data/log";
 import { CodebaseIndexer } from "./indexing/CodebaseIndexer";
 import DocsService from "./indexing/docs/DocsService";
 import { countTokens } from "./llm/countTokens";
-import Lemonade from "./llm/llms/Lemonade";
 import { fetchModels } from "./llm/fetchModels";
+import Lemonade from "./llm/llms/Lemonade";
 import Ollama from "./llm/llms/Ollama";
+import { bridgeVisualContext } from "./llm/visualBridge";
 import { EditAggregator } from "./nextEdit/context/aggregateEdits";
 import { createNewPromptFileV2 } from "./promptFiles/createNewPromptFile";
 import { callTool } from "./tools/callTool";
@@ -667,6 +668,23 @@ export class Core {
       }
 
       return model.compileChatMessages(messages, options);
+    });
+
+    on("llm/bridgeVisualContext", async (msg) => {
+      const { config } = await this.configHandler.loadConfig();
+
+      if (!config) {
+        throw new Error("Config not loaded");
+      }
+
+      const abortController = this.addMessageAbortController(msg.messageId);
+
+      return bridgeVisualContext({
+        config,
+        message: msg.data.message,
+        signal: abortController.signal,
+        completionOptions: msg.data.completionOptions,
+      });
     });
 
     // Provide messenger to utils so they can interact with GUI + state

@@ -1663,6 +1663,11 @@ export interface VisualBridgeConfig {
   failOnBridgeError?: boolean;
 }
 
+export interface VisualBridgeContextResult {
+  bridgeModelTitle: string;
+  summary: string;
+}
+
 export type DefaultContextProvider = ContextProviderWithParams & {
   query?: string;
 };
