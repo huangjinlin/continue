@@ -3,6 +3,7 @@ import { BaseSessionMetadata, ChatMessage, Session } from "core";
 import { RemoteSessionMetadata } from "core/control-plane/client";
 import { NEW_SESSION_TITLE } from "core/util/constants";
 import { renderChatMessage } from "core/util/messageContent";
+import { v4 as uuidv4 } from "uuid";
 import { IIdeMessenger } from "../../context/IdeMessenger";
 import { selectSelectedChatModel } from "../slices/configSlice";
 import { selectSelectedProfile } from "../slices/profilesSlice";
@@ -17,6 +18,34 @@ import { ThunkApiType } from "../store";
 import { updateSelectedModelByRole } from "../thunks/updateSelectedModelByRole";
 
 const MAX_TITLE_LENGTH = 100;
+const DERIVED_SESSION_TITLE_SUFFIX = "（派生）";
+
+export function getHistoryBeforeAssistantInteraction(
+  history: Session["history"],
+  assistantIndex: number,
+): Session["history"] {
+  let currentInteractionUserIndex = -1;
+
+  for (let index = assistantIndex - 1; index >= 0; index--) {
+    if (history[index]?.message.role === "user") {
+      currentInteractionUserIndex = index;
+      break;
+    }
+  }
+
+  if (currentInteractionUserIndex <= 0) {
+    return [];
+  }
+
+  return history.slice(0, currentInteractionUserIndex);
+}
+
+export function getDerivedSessionTitle(sourceTitle: string): string {
+  const normalizedTitle = sourceTitle.trim() || NEW_SESSION_TITLE;
+  return normalizedTitle.endsWith(DERIVED_SESSION_TITLE_SUFFIX)
+    ? normalizedTitle
+    : `${normalizedTitle}${DERIVED_SESSION_TITLE_SUFFIX}`;
+}
 
 // Async session functions live in thunks (because of IDE messaging mostly)
 // see sessionSlice for sync redux session functions
@@ -210,6 +239,59 @@ export const loadLastSession = createAsyncThunk<void, void, ThunkApiType>(
     if (session.chatModelTitle) {
       dispatch(selectChatModelForProfile(session.chatModelTitle));
     }
+  },
+);
+
+export const deriveSessionFromIndex = createAsyncThunk<
+  void,
+  {
+    assistantIndex: number;
+  },
+  ThunkApiType
+>(
+  "session/deriveFromIndex",
+  async ({ assistantIndex }, { dispatch, getState }) => {
+    const state = getState();
+    const currentSession = state.session;
+    const derivedHistory = getHistoryBeforeAssistantInteraction(
+      currentSession.history,
+      assistantIndex,
+    );
+
+    if (!derivedHistory.length) {
+      return;
+    }
+
+    const selectedChatModel = selectSelectedChatModel(state);
+
+    const saveCurrentResult = await dispatch(
+      saveCurrentSession({
+        openNewSession: false,
+        generateTitle: true,
+      }),
+    );
+    unwrapResult(saveCurrentResult);
+
+    const sourceSessionTitle = getState().session.title;
+
+    dispatch(
+      newSession({
+        sessionId: uuidv4(),
+        title: getDerivedSessionTitle(sourceSessionTitle),
+        workspaceDirectory: window.workspacePaths?.[0] || "",
+        history: derivedHistory,
+        mode: currentSession.mode,
+        chatModelTitle: selectedChatModel?.title ?? null,
+      }),
+    );
+
+    const saveDerivedResult = await dispatch(
+      saveCurrentSession({
+        openNewSession: false,
+        generateTitle: true,
+      }),
+    );
+    unwrapResult(saveDerivedResult);
   },
 );
 

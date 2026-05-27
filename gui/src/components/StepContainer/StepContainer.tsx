@@ -1,4 +1,7 @@
-import { ArrowUturnLeftIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowUturnLeftIcon,
+  DocumentDuplicateIcon,
+} from "@heroicons/react/24/outline";
 import { ChatHistoryItem } from "core";
 import { renderChatMessage, stripImages } from "core/util/messageContent";
 import { useEffect, useState } from "react";
@@ -8,7 +11,10 @@ import {
   deleteMessage,
   restoreCheckpointAtIndex,
 } from "../../redux/slices/sessionSlice";
-import { saveCurrentSession } from "../../redux/thunks/session";
+import {
+  deriveSessionFromIndex,
+  saveCurrentSession,
+} from "../../redux/thunks/session";
 import HeaderButtonWithToolTip from "../gui/HeaderButtonWithToolTip";
 import ThinkingBlockPeek from "../mainInput/belowMainInput/ThinkingBlockPeek";
 import StyledMarkdownPreview from "../StyledMarkdownPreview";
@@ -42,13 +48,19 @@ export default function StepContainer(props: StepContainerProps) {
   const showResponseActions =
     (props.isLast || historyItemAfterThis?.message.role === "user") &&
     !(props.isLast && (isStreaming || props.item.toolCallStates));
-  const hasPreviousUserMessage = useAppSelector((state) =>
-    state.session.history
-      .slice(0, props.index)
-      .some((item) => item.message.role === "user"),
-  );
+  const currentInteractionUserIndex = useAppSelector((state) => {
+    for (let index = props.index - 1; index >= 0; index--) {
+      if (state.session.history[index]?.message.role === "user") {
+        return index;
+      }
+    }
+
+    return -1;
+  });
   const showRestoreCheckpointButton =
-    showResponseActions && hasPreviousUserMessage && !isStreaming;
+    showResponseActions && currentInteractionUserIndex >= 0 && !isStreaming;
+  const showDeriveConversationButton =
+    showResponseActions && currentInteractionUserIndex > 0 && !isStreaming;
 
   useEffect(() => {
     if (!isStreaming) {
@@ -85,6 +97,14 @@ export default function StepContainer(props: StepContainerProps) {
     );
   }
 
+  async function onDeriveConversation() {
+    await dispatch(
+      deriveSessionFromIndex({
+        assistantIndex: props.index,
+      }),
+    );
+  }
+
   function onContinueGeneration() {
     window.postMessage(
       {
@@ -99,18 +119,31 @@ export default function StepContainer(props: StepContainerProps) {
 
   return (
     <div className="group relative">
-      {showRestoreCheckpointButton && (
+      {(showRestoreCheckpointButton || showDeriveConversationButton) && (
         <div className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-          <HeaderButtonWithToolTip
-            text="删除当前互动及其后的互动"
-            onClick={onRestoreCheckpoint}
-            className="border-border bg-vsc-input-background pointer-events-auto border border-solid px-2 py-1 text-[11px] shadow-sm"
-          >
-            <div className="flex items-center gap-1 whitespace-nowrap text-xs">
-              <ArrowUturnLeftIcon className="h-3.5 w-3.5" />
-              <span>还原检查点</span>
-            </div>
-          </HeaderButtonWithToolTip>
+          <div className="flex items-center gap-1">
+            {showRestoreCheckpointButton && (
+              <HeaderButtonWithToolTip
+                text="还原检查点"
+                onClick={onRestoreCheckpoint}
+                className="border-border bg-vsc-input-background pointer-events-auto h-7 w-7 border border-solid shadow-sm"
+              >
+                <ArrowUturnLeftIcon className="h-3.5 w-3.5" />
+              </HeaderButtonWithToolTip>
+            )}
+
+            {showDeriveConversationButton && (
+              <HeaderButtonWithToolTip
+                text="从此处派生对话"
+                onClick={() => {
+                  void onDeriveConversation();
+                }}
+                className="border-border bg-vsc-input-background pointer-events-auto h-7 w-7 border border-solid shadow-sm"
+              >
+                <DocumentDuplicateIcon className="h-3.5 w-3.5" />
+              </HeaderButtonWithToolTip>
+            )}
+          </div>
         </div>
       )}
 
