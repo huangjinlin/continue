@@ -229,6 +229,187 @@ describe("streamResponseThunk", () => {
     );
   });
 
+  it("should not call visual bridge for text-only messages", async () => {
+    const initialState = getRootStateWithClaude();
+    initialState.session.history = [];
+    initialState.session.id = "session-bridge-no-image";
+    initialState.config.config.experimental = {
+      ...initialState.config.config.experimental,
+      visualBridge: {
+        enabled: true,
+        modelTitle: "Qwen Vision Test",
+      },
+    };
+    initialState.config.config.selectedModelByRole.chat = mockDeepSeekModel;
+
+    mockResolveEditorContent.mockResolvedValueOnce({
+      selectedContextItems: [],
+      selectedCode: [],
+      content: "请解释这一段报错",
+      legacyCommandWithInput: undefined,
+    });
+
+    const mockStore = createMockStore(initialState);
+    const requestSpy = vi.spyOn(mockStore.mockIdeMessenger, "request");
+
+    mockStore.mockIdeMessenger.responseHandlers["llm/compileChat"] = async (
+      data,
+    ) => ({
+      compiledChatMessages: data.messages,
+      didPrune: false,
+      contextPercentage: 0.18,
+    });
+
+    await mockStore.dispatch(
+      streamResponseThunk({
+        editorState: mockEditorState,
+        modifiers: mockModifiers,
+      }) as any,
+    );
+
+    expect(
+      requestSpy.mock.calls.some(
+        (call) => call[0] === "llm/bridgeVisualContext",
+      ),
+    ).toBe(false);
+
+    const compileCall = requestSpy.mock.calls.find(
+      (call) => call[0] === "llm/compileChat",
+    );
+
+    expect(compileCall).toBeDefined();
+    expect((compileCall as any)[1].messages.at(-1)).toEqual({
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: "请解释这一段报错",
+        },
+      ],
+    });
+  });
+
+  it("should only bridge once when retrying the same image message twice", async () => {
+    const initialState = getRootStateWithClaude();
+    initialState.session.history = [];
+    initialState.session.id = "session-bridge-retry";
+    initialState.config.config.experimental = {
+      ...initialState.config.config.experimental,
+      visualBridge: {
+        enabled: true,
+        modelTitle: "Qwen Vision Test",
+      },
+    };
+    initialState.config.config.selectedModelByRole.chat = mockDeepSeekModel;
+
+    mockResolveEditorContent
+      .mockResolvedValueOnce({
+        selectedContextItems: [],
+        selectedCode: [],
+        content: mockImageContent,
+        legacyCommandWithInput: undefined,
+      })
+      .mockResolvedValueOnce({
+        selectedContextItems: [],
+        selectedCode: [],
+        content: mockImageContent,
+        legacyCommandWithInput: undefined,
+      });
+
+    const mockStore = createMockStore(initialState);
+    const mockIdeMessenger = mockStore.mockIdeMessenger;
+    const requestSpy = vi.spyOn(mockIdeMessenger, "request");
+
+    mockIdeMessenger.responses["llm/bridgeVisualContext"] = {
+      bridgeModelTitle: "Qwen Vision Test",
+      summary: "1. 页面类型\n登录页面",
+    };
+    mockIdeMessenger.responseHandlers["llm/compileChat"] = async (data) => ({
+      compiledChatMessages: data.messages,
+      didPrune: false,
+      contextPercentage: 0.42,
+    });
+
+    async function* mockStreamGenerator(): AsyncGenerator<
+      AssistantChatMessage[],
+      PromptLog
+    > {
+      yield [{ role: "assistant", content: "bridged answer" }];
+      return {
+        prompt: "prompt",
+        completion: "bridged answer",
+        modelProvider: "anthropic",
+        modelTitle: "Claude 3.5 Sonnet",
+      };
+    }
+
+    mockIdeMessenger.llmStreamChat = vi
+      .fn()
+      .mockImplementation(() => mockStreamGenerator());
+
+    await mockStore.dispatch(
+      streamResponseThunk({
+        editorState: mockEditorState,
+        modifiers: mockModifiers,
+      }) as any,
+    );
+
+    const firstState = mockStore.getState() as RootState;
+    const retriedUserIndex = firstState.session.history.findIndex(
+      (item) =>
+        item.message.role === "user" &&
+        getVisualBridgeMessageMetadata(item.message),
+    );
+
+    expect(retriedUserIndex).toBe(0);
+
+    await mockStore.dispatch(
+      streamResponseThunk({
+        editorState: mockEditorState,
+        modifiers: mockModifiers,
+        index: retriedUserIndex,
+      }) as any,
+    );
+
+    const bridgeCalls = requestSpy.mock.calls.filter(
+      (call) => call[0] === "llm/bridgeVisualContext",
+    );
+    expect(bridgeCalls).toHaveLength(1);
+
+    const compileCalls = requestSpy.mock.calls.filter(
+      (call) => call[0] === "llm/compileChat",
+    );
+    expect(compileCalls).toHaveLength(2);
+    expect((compileCalls[1] as any)[1].messages.at(-1)).toMatchObject({
+      role: "user",
+      content: [
+        ...mockImageContent,
+        {
+          type: "text",
+          text: expect.stringContaining("桥接模型: Qwen Vision Test"),
+        },
+      ],
+      metadata: {
+        visualBridge: expect.objectContaining({
+          bridgeModelTitle: "Qwen Vision Test",
+          summary: "1. 页面类型\n登录页面",
+        }),
+      },
+    });
+
+    const finalState = mockStore.getState() as RootState;
+    expect(
+      getVisualBridgeMessageMetadata(
+        finalState.session.history[retriedUserIndex].message,
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        bridgeModelTitle: "Qwen Vision Test",
+        summary: "1. 页面类型\n登录页面",
+      }),
+    );
+  });
+
   it("should skip visual bridge for image-capable chat models", async () => {
     const initialState = getRootStateWithClaude();
     initialState.session.history = [

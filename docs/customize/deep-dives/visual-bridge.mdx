@@ -1,0 +1,74 @@
+---
+title: "Visual Bridge"
+---
+
+Visual bridge lets Continue answer screenshot-based chat requests with a text-only chat model. When the selected chat model cannot accept images, Continue calls a separate vision model, injects the returned screenshot summary into the chat request, and keeps the original screenshot attached to the user message.
+
+## Prerequisites
+
+- A chat model that does not support image input. Example: `deepseek-chat`
+- A second model that supports image input. Example: Qwen VL through DashScope's OpenAI-compatible endpoint
+- Screenshot paste or image upload enabled in the chat input
+
+The example below uses `${{ secrets.X }}` syntax for API keys. See [FAQs](/faqs) if you store secrets in Continue rather than writing keys inline.
+
+## Configuration
+
+```yaml title="config.yaml"
+name: Visual Bridge Demo
+version: 1.0.0
+schema: v1
+
+models:
+  - name: DeepSeek Main
+    provider: deepseek
+    model: deepseek-chat
+    apiKey: ${{ secrets.DEEPSEEK_API_KEY }}
+    roles:
+      - chat
+
+  - name: Qwen Vision Bridge
+    provider: openai
+    apiBase: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model: qwen-vl-max-latest
+    apiKey: ${{ secrets.DASHSCOPE_API_KEY }}
+    capabilities:
+      - image_input
+    roles:
+      - chat
+
+experimental:
+  visualBridge:
+    enabled: true
+    modelTitle: Qwen Vision Bridge
+    failOnBridgeError: true
+```
+
+Keep `DeepSeek Main` selected as the active chat model. `Qwen Vision Bridge` only needs to exist in the config so Continue can find it by `experimental.visualBridge.modelTitle`.
+
+## Validation
+
+1. Reload the Continue config and select `DeepSeek Main` in the chat model picker.
+
+Expected result:
+The selected chat model is `DeepSeek Main`, and `Qwen Vision Bridge` is available in the model list.
+
+2. Paste a screenshot and ask for a page reconstruction.
+
+Expected result:
+Continue returns a normal chat answer, and the user message shows `已使用视觉桥接模型分析截图 · Qwen Vision Bridge`.
+
+3. Retry the same user message.
+
+Expected result:
+Continue reuses the cached bridge metadata for that message instead of calling the bridge model again.
+
+4. Send a text-only message in the same session.
+
+Expected result:
+Continue skips visual bridge and sends the request directly to `DeepSeek Main`.
+
+## Common Errors
+
+- `experimental.visualBridge.modelTitle was not found`: the bridge model name does not exactly match a configured model.
+- `must support image input`: add `image_input` to the bridge model `capabilities` if autodetection does not recognize the model.

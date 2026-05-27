@@ -1,6 +1,10 @@
 import { createAsyncThunk, unwrapResult } from "@reduxjs/toolkit";
 import { JSONContent } from "@tiptap/core";
-import { InputModifiers } from "core";
+import { ChatMessage, InputModifiers } from "core";
+import {
+  getVisualBridgeMessageMetadata,
+  withVisualBridgeMessageMetadata,
+} from "core/llm/visualBridge";
 import posthog from "posthog-js";
 import { v4 as uuidv4 } from "uuid";
 import { resolveEditorContent } from "../../components/mainInput/TipTapEditor/utils/resolveEditorContent";
@@ -14,6 +18,44 @@ import { ThunkApiType } from "../store";
 import { streamNormalInput } from "./streamNormalInput";
 import { streamThunkWrapper } from "./streamThunkWrapper";
 import { updateFileSymbolsFromFiles } from "./updateFileSymbols";
+
+function getImageUrls(content: ChatMessage["content"]): string[] {
+  if (!Array.isArray(content)) {
+    return [];
+  }
+
+  return content.flatMap((part) =>
+    part.type === "imageUrl" ? [part.imageUrl.url] : [],
+  );
+}
+
+function getRetainedVisualBridgeMetadata(
+  existingMessage: ChatMessage | undefined,
+  nextContent: ChatMessage["content"],
+) {
+  if (!existingMessage) {
+    return undefined;
+  }
+
+  const existingMetadata = getVisualBridgeMessageMetadata(existingMessage);
+  if (!existingMetadata) {
+    return undefined;
+  }
+
+  const previousImageUrls = getImageUrls(existingMessage.content);
+  const nextImageUrls = getImageUrls(nextContent);
+
+  if (
+    previousImageUrls.length === 0 ||
+    previousImageUrls.length !== nextImageUrls.length
+  ) {
+    return undefined;
+  }
+
+  return previousImageUrls.every((url, index) => url === nextImageUrls[index])
+    ? existingMetadata
+    : undefined;
+}
 
 export const streamResponseThunk = createAsyncThunk<
   void,
@@ -69,15 +111,31 @@ export const streamResponseThunk = createAsyncThunk<
         ];
         void dispatch(updateFileSymbolsFromFiles(filesForSymbols));
 
-        dispatch(
-          updateHistoryItemAtIndex({
-            index: inputIndex,
-            updates: {
-              message: {
+        const retainedVisualBridgeMetadata = getRetainedVisualBridgeMetadata(
+          state.session.history[inputIndex]?.message,
+          content,
+        );
+
+        const nextUserMessage = retainedVisualBridgeMetadata
+          ? withVisualBridgeMessageMetadata(
+              {
                 role: "user",
                 content,
                 id: uuidv4(),
               },
+              retainedVisualBridgeMetadata,
+            )
+          : {
+              role: "user" as const,
+              content,
+              id: uuidv4(),
+            };
+
+        dispatch(
+          updateHistoryItemAtIndex({
+            index: inputIndex,
+            updates: {
+              message: nextUserMessage,
               contextItems: selectedContextItems,
             },
           }),
