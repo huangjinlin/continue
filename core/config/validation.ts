@@ -1,7 +1,155 @@
 import { ConfigValidationError } from "@continuedev/config-yaml";
 
 import { ModelDescription, SerializedContinueConfig } from "../";
+import { modelSupportsImages } from "../llm/autodetect";
 import { Telemetry } from "../util/posthog";
+
+type VisualBridgeModelConfig = {
+  title?: string;
+  name?: string;
+  provider?: string;
+  model?: string;
+  capabilities?: ModelDescription["capabilities"] | string[];
+};
+
+function getVisualBridgeModelTitle(model: VisualBridgeModelConfig): string {
+  return model.title ?? model.name ?? model.model ?? "";
+}
+
+function getVisualBridgeModelCapabilities(
+  capabilities: VisualBridgeModelConfig["capabilities"],
+) {
+  if (Array.isArray(capabilities)) {
+    return {
+      uploadImage: capabilities.includes("image_input"),
+    };
+  }
+
+  return capabilities;
+}
+
+export function validateExperimentalConfig(config: {
+  experimental?: unknown;
+  models?: VisualBridgeModelConfig[];
+}): ConfigValidationError[] {
+  const errors: ConfigValidationError[] = [];
+
+  if (config.experimental === undefined) {
+    return errors;
+  }
+
+  if (
+    typeof config.experimental !== "object" ||
+    config.experimental === null ||
+    Array.isArray(config.experimental)
+  ) {
+    errors.push({
+      fatal: true,
+      message: "The 'experimental' field should be an object if defined.",
+    });
+    return errors;
+  }
+
+  const visualBridge = (config.experimental as Record<string, unknown>)
+    .visualBridge;
+
+  if (visualBridge === undefined) {
+    return errors;
+  }
+
+  if (
+    typeof visualBridge !== "object" ||
+    visualBridge === null ||
+    Array.isArray(visualBridge)
+  ) {
+    errors.push({
+      fatal: true,
+      message:
+        "The 'experimental.visualBridge' field should be an object if defined.",
+    });
+    return errors;
+  }
+
+  const { enabled, modelTitle, failOnBridgeError } = visualBridge as Record<
+    string,
+    unknown
+  >;
+
+  if (enabled !== undefined && typeof enabled !== "boolean") {
+    errors.push({
+      fatal: true,
+      message:
+        "The 'experimental.visualBridge.enabled' field should be a boolean if defined.",
+    });
+  }
+
+  if (
+    modelTitle !== undefined &&
+    (typeof modelTitle !== "string" || modelTitle.trim() === "")
+  ) {
+    errors.push({
+      fatal: true,
+      message:
+        "The 'experimental.visualBridge.modelTitle' field should be a non-empty string if defined.",
+    });
+  }
+
+  if (
+    failOnBridgeError !== undefined &&
+    typeof failOnBridgeError !== "boolean"
+  ) {
+    errors.push({
+      fatal: true,
+      message:
+        "The 'experimental.visualBridge.failOnBridgeError' field should be a boolean if defined.",
+    });
+  }
+
+  if (errors.some((error) => error.fatal)) {
+    return errors;
+  }
+
+  if (enabled !== true) {
+    return errors;
+  }
+
+  if (!modelTitle) {
+    errors.push({
+      fatal: true,
+      message:
+        "The 'experimental.visualBridge.modelTitle' field must be set when visual bridging is enabled.",
+    });
+    return errors;
+  }
+
+  const matchingModel = config.models?.find(
+    (model) => getVisualBridgeModelTitle(model) === modelTitle,
+  );
+
+  if (!matchingModel) {
+    errors.push({
+      fatal: true,
+      message: `The model \"${modelTitle}\" referenced by 'experimental.visualBridge.modelTitle' was not found in the configured models.`,
+    });
+    return errors;
+  }
+
+  if (
+    !modelSupportsImages(
+      matchingModel.provider ?? "",
+      matchingModel.model ?? "",
+      getVisualBridgeModelTitle(matchingModel),
+      getVisualBridgeModelCapabilities(matchingModel.capabilities),
+    )
+  ) {
+    errors.push({
+      fatal: true,
+      message: `The model \"${modelTitle}\" referenced by 'experimental.visualBridge.modelTitle' must support image input.`,
+    });
+  }
+
+  return errors;
+}
 
 /**
  * Validates a SerializedContinueConfig object to ensure all properties are correctly formed.
@@ -139,6 +287,13 @@ export function validateConfig(config: SerializedContinueConfig) {
       message: "The 'reranker' field should be an object if defined.",
     });
   }
+
+  errors.push(
+    ...validateExperimentalConfig({
+      experimental: config.experimental,
+      models: Array.isArray(config.models) ? config.models : undefined,
+    }),
+  );
 
   // Validate other boolean flags
   const booleanFlags: Array<

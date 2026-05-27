@@ -103,6 +103,7 @@ export const baseConfigYamlSchema = z.object({
   schema: z.string().optional(),
   metadata: z.record(z.string()).and(commonMetadataSchema.partial()).optional(),
   env: envRecord.optional(),
+  experimental: z.object({}).passthrough().optional(),
   requestOptions: requestOptionsSchema.optional(),
 });
 

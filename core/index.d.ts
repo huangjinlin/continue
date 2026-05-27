@@ -1657,6 +1657,12 @@ export interface QuickActionConfig {
   sendToChat: boolean;
 }
 
+export interface VisualBridgeConfig {
+  enabled?: boolean;
+  modelTitle?: string;
+  failOnBridgeError?: boolean;
+}
+
 export type DefaultContextProvider = ContextProviderWithParams & {
   query?: string;
 };
@@ -1664,6 +1670,7 @@ export type DefaultContextProvider = ContextProviderWithParams & {
 export interface ExperimentalConfig {
   contextMenuPrompts?: ContextMenuConfig;
   modelRoles?: ExperimentalModelRoles;
+  visualBridge?: VisualBridgeConfig;
   defaultContext?: DefaultContextProvider[];
   promptPath?: string;
   enableExperimentalTools?: boolean;

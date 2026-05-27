@@ -28,6 +28,7 @@ import TransformersJsEmbeddingsProvider from "../../llm/llms/TransformersJsEmbed
 import { getAllPromptFiles } from "../../promptFiles/getPromptFiles";
 import { GlobalContext } from "../../util/GlobalContext";
 import { modifyAnyConfigWithSharedConfig } from "../sharedConfig";
+import { validateExperimentalConfig } from "../validation";
 
 import { convertPromptBlockToSlashCommand } from "../../commands/slash/promptBlockSlashCommand";
 import { slashCommandFromPromptFile } from "../../commands/slash/promptFileSlashCommand";
@@ -147,6 +148,12 @@ async function loadConfigYaml(options: {
 
   if (config) {
     errors.push(...validateConfigYaml(nonNullifyConfigYaml(config)));
+    errors.push(
+      ...validateExperimentalConfig({
+        experimental: config.experimental,
+        models: nonNullifyConfigYaml(config).models,
+      }),
+    );
   }
 
   if (errors?.some((error) => error.fatal)) {
@@ -197,6 +204,7 @@ export async function configYamlToContinueConfig(options: {
     tools: getBaseToolDefinitions(),
     mcpServerStatuses: [],
     contextProviders: [],
+    experimental: undefined,
     modelsByRole: {
       chat: [],
       edit: [],
@@ -222,6 +230,8 @@ export async function configYamlToContinueConfig(options: {
   };
 
   const config = nonNullifyConfigYaml(unrolledAssistant);
+  continueConfig.experimental =
+    config.experimental as ContinueConfig["experimental"];
 
   for (const rule of config.rules ?? []) {
     const convertedRule = convertYamlRuleToContinueRule(rule);

@@ -28,6 +28,39 @@ models:
     expect(result.models?.[0]).toHaveProperty("name", "model");
   });
 
+  it("preserves experimental settings in YAML assistants", () => {
+    const mockId: PackageIdentifier = {
+      uriType: "file",
+      fileUri: "./foo/bar.yaml",
+    };
+    const yamlContent = `
+name: Test Agent
+version: 1.0.0
+
+models:
+  - name: vision-model
+    model: qwen3.6-plus
+    provider: openai
+    capabilities:
+      - image_input
+
+experimental:
+  visualBridge:
+    enabled: true
+    modelTitle: vision-model
+    failOnBridgeError: true
+`;
+
+    const result = parseMarkdownRuleOrAssistantUnrolled(yamlContent, mockId);
+    expect(result.experimental).toEqual({
+      visualBridge: {
+        enabled: true,
+        modelTitle: "vision-model",
+        failOnBridgeError: true,
+      },
+    });
+  });
+
   it("parses markdown rule content as AssistantUnrolled", () => {
     const mockId: PackageIdentifier = {
       uriType: "file",

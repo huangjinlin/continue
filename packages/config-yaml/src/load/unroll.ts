@@ -388,6 +388,7 @@ export async function unrollBlocks(
   const unrolledAssistant: AssistantUnrolled = {
     name: assistant.name,
     version: assistant.version,
+    experimental: assistant.experimental,
     requestOptions: assistant.requestOptions,
   };
 
@@ -408,6 +409,7 @@ export async function unrollBlocks(
     | "schema"
     | "metadata"
     | "env"
+    | "experimental"
     | "requestOptions"
   >)[] = ["models", "context", "data", "mcpServers", "prompts", "docs"];
 
