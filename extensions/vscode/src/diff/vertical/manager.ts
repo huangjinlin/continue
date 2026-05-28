@@ -79,6 +79,10 @@ export class VerticalDiffManager {
     return this.fileUriToHandler.get(fileUri)?.streamId;
   }
 
+  getToolCallIdForFile(fileUri: string): string | undefined {
+    return this.fileUriToHandler.get(fileUri)?.toolCallId;
+  }
+
   // Creates a listener for document changes by user.
   private enableDocumentChangeListener(): vscode.Disposable | undefined {
     if (this.userChangeListener) {
@@ -239,6 +243,7 @@ export class VerticalDiffManager {
       endLine,
       {
         instant,
+        toolCallId,
         onStatusUpdate: (status, numDiffs, fileContent) =>
           void this.webviewProtocol.request("updateApplyState", {
             streamId,
@@ -318,6 +323,7 @@ export class VerticalDiffManager {
       editor.document.lineCount - 1,
       {
         instant: true,
+        toolCallId,
         onStatusUpdate: (status, numDiffs, fileContent) =>
           void this.webviewProtocol.request("updateApplyState", {
             streamId,
@@ -446,6 +452,7 @@ export class VerticalDiffManager {
       {
         instant: isFastApplyModel(llm),
         input,
+        toolCallId,
         onStatusUpdate: (status, numDiffs, fileContent) =>
           streamId &&
           void this.webviewProtocol.request("updateApplyState", {

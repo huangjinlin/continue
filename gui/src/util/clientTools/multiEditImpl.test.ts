@@ -150,5 +150,49 @@ describe("multiEditImpl GUI specific", () => {
         output: undefined,
       });
     });
+
+    it("waits for applyForEditTool dispatch before resolving", async () => {
+      mockResolveRelativePathInDir.mockResolvedValue(
+        "file:///dir/test/file.txt",
+      );
+      mockExtras.ideMessenger.ide.readFile = vi.fn().mockResolvedValue("test");
+
+      let resolveDispatch: (() => void) | undefined;
+      mockExtras.dispatch = vi.fn().mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveDispatch = resolve;
+          }),
+      ) as any;
+
+      const pendingResult = multiEditImpl(
+        {
+          filepath: "file.txt",
+          edits: [{ old_string: "test", new_string: "new" }],
+        },
+        "id",
+        mockExtras,
+      );
+
+      await Promise.resolve();
+      await vi.waitFor(() => {
+        expect(mockExtras.dispatch).toHaveBeenCalledTimes(1);
+      });
+
+      let hasResolved = false;
+      void pendingResult.then(() => {
+        hasResolved = true;
+      });
+
+      await Promise.resolve();
+      expect(hasResolved).toBe(false);
+
+      resolveDispatch?.();
+
+      await expect(pendingResult).resolves.toEqual({
+        respondImmediately: false,
+        output: undefined,
+      });
+    });
   });
 });

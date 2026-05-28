@@ -16,6 +16,7 @@ import { getFirstChangedLine } from "./util";
 export interface VerticalDiffHandlerOptions {
   input?: string;
   instant?: boolean;
+  toolCallId?: string;
   onStatusUpdate: (
     status?: ApplyState["status"],
     numDiffs?: ApplyState["numDiffs"],
@@ -27,6 +28,7 @@ export interface VerticalDiffHandlerOptions {
 export class VerticalDiffHandler implements vscode.Disposable {
   public insertedInCurrentBlock = 0;
   public streamId?: string;
+  public toolCallId?: string;
   disposables: vscode.Disposable[] = [];
   private currentLineIndex: number;
   private cancelled = false;
@@ -54,6 +56,7 @@ export class VerticalDiffHandler implements vscode.Disposable {
   ) {
     this.currentLineIndex = startLine;
     this.streamId = options.streamId;
+    this.toolCallId = options.toolCallId;
 
     this.removedLineDecorations = new RemovedLineDecorationManager(this.editor);
     this.addedLineDecorations = new AddedLineDecorationManager(this.editor);

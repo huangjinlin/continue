@@ -346,6 +346,51 @@ describe("singleFindAndReplaceImpl", () => {
         output: undefined,
       });
     });
+
+    it("waits for applyForEditTool dispatch before resolving", async () => {
+      mockResolveRelativePathInDir.mockResolvedValue("/test/file.txt");
+      mockExtras.ideMessenger.ide.readFile = vi
+        .fn()
+        .mockResolvedValue("test content");
+
+      let resolveDispatch: (() => void) | undefined;
+      mockExtras.dispatch = vi.fn().mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveDispatch = resolve;
+          }),
+      ) as any;
+
+      const pendingResult = singleFindAndReplaceImpl(
+        {
+          filepath: "file.txt",
+          old_string: "test",
+          new_string: "replacement",
+        },
+        "tool-call-id",
+        mockExtras,
+      );
+
+      await Promise.resolve();
+      await vi.waitFor(() => {
+        expect(mockExtras.dispatch).toHaveBeenCalledTimes(1);
+      });
+
+      let hasResolved = false;
+      void pendingResult.then(() => {
+        hasResolved = true;
+      });
+
+      await Promise.resolve();
+      expect(hasResolved).toBe(false);
+
+      resolveDispatch?.();
+
+      await expect(pendingResult).resolves.toEqual({
+        respondImmediately: false,
+        output: undefined,
+      });
+    });
   });
 
   describe("error handling", () => {

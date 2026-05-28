@@ -1497,6 +1497,7 @@ export interface ApplyState {
   originalFileContent?: string;
   toolCallId?: string;
   autoFormattingDiff?: string;
+  accepted?: boolean;
 }
 
 export type StreamDiffLinesType = "edit" | "apply";

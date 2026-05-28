@@ -1,6 +1,7 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { ApplyState, ApplyToFilePayload } from "core";
 import { EDIT_MODE_STREAM_ID } from "core/edit/constants";
+import { shouldDeferEditToolReview } from "../../util/deferredEditToolReview";
 import { logAgentModeEditOutcome } from "../../util/editOutcomeLogger";
 import {
   selectApplyStateByToolCallId,
@@ -9,14 +10,110 @@ import {
 import { updateEditStateApplyState } from "../slices/editState";
 import {
   acceptToolCall,
+  cancelToolCall,
   errorToolCall,
   updateApplyState,
   updateToolCallOutput,
 } from "../slices/sessionSlice";
-import { ThunkApiType } from "../store";
+import { AppThunkDispatch, RootState, ThunkApiType } from "../store";
 import { findToolCallById, logToolUsage } from "../util";
 import { exitEdit } from "./edit";
 import { streamResponseAfterToolCall } from "./streamResponseAfterToolCall";
+
+function dispatchPendingReviewToolCallOutput(
+  dispatch: AppThunkDispatch,
+  toolCallId: string,
+  filepath?: string,
+) {
+  dispatch(
+    updateToolCallOutput({
+      toolCallId,
+      contextItems: [
+        {
+          name: "Edit Pending Review",
+          content: `Generated pending edits for ${filepath ?? "the requested file"}. The diff is waiting for user review before final confirmation.`,
+          description: "",
+          hidden: true,
+        },
+      ],
+    }),
+  );
+}
+
+function dispatchFinalToolCallOutput(
+  dispatch: AppThunkDispatch,
+  toolCallId: string,
+  applyState: ApplyState,
+) {
+  if (applyState.autoFormattingDiff) {
+    dispatch(
+      updateToolCallOutput({
+        toolCallId,
+        contextItems: [
+          {
+            icon: "info",
+            name: "Auto-formatting Applied",
+            description: "Editor auto-formatting changes",
+            content: `Along with your edits, the editor applied the following auto-formatting:\n\n${applyState.autoFormattingDiff}\n\n(Note: Pay close attention to changes such as single quotes being converted to double quotes, semicolons being removed or added, long lines being broken into multiple lines, adjusting indentation style, adding/removing trailing commas, etc. This will help you ensure future SEARCH/REPLACE operations to this file are accurate.)`,
+            hidden: false,
+          },
+        ],
+      }),
+    );
+  } else {
+    dispatch(
+      updateToolCallOutput({
+        toolCallId,
+        contextItems: [
+          {
+            name: "Edit Success",
+            content: `Successfully edited ${applyState.filepath}`,
+            description: "",
+            hidden: true,
+          },
+        ],
+      }),
+    );
+  }
+}
+
+function rejectRemainingDeferredReviewEdits(
+  dispatch: AppThunkDispatch,
+  getState: () => RootState,
+  ideMessenger: ThunkApiType["extra"]["ideMessenger"],
+  currentStreamId: string,
+) {
+  const state = getState();
+  const pendingDeferredApplyStates =
+    state.session.codeBlockApplyStates.states.filter(
+      (pendingApplyState: ApplyState) =>
+        pendingApplyState.streamId !== currentStreamId &&
+        pendingApplyState.status === "done" &&
+        !!pendingApplyState.toolCallId,
+    );
+
+  for (const pendingApplyState of pendingDeferredApplyStates) {
+    const pendingToolCallState = findToolCallById(
+      state.session.history,
+      pendingApplyState.toolCallId!,
+    );
+
+    if (
+      pendingToolCallState?.status === "done" &&
+      shouldDeferEditToolReview(pendingToolCallState.toolCall.function.name)
+    ) {
+      dispatch(
+        cancelToolCall({
+          toolCallId: pendingApplyState.toolCallId!,
+        }),
+      );
+      ideMessenger.post("rejectDiff", {
+        filepath: pendingApplyState.filepath ?? "",
+        streamId: pendingApplyState.streamId,
+      });
+    }
+  }
+}
 
 export const handleApplyStateUpdate = createAsyncThunk<
   void,
@@ -42,28 +139,62 @@ export const handleApplyStateUpdate = createAsyncThunk<
       // chat or agent
       dispatch(updateApplyState(applyState));
 
+      const currentApplyState =
+        getState().session.codeBlockApplyStates?.states.find(
+          (state) => state.streamId === applyState.streamId,
+        );
+      const effectiveToolCallId =
+        applyState.toolCallId ?? currentApplyState?.toolCallId;
+
       // Handle apply status updates - use toolCallId from event payload
-      if (applyState.toolCallId) {
+      if (effectiveToolCallId) {
         const toolCallState = findToolCallById(
           getState().session.history,
-          applyState.toolCallId,
+          effectiveToolCallId,
+        );
+        const deferEditToolReview = shouldDeferEditToolReview(
+          toolCallState?.toolCall.function.name,
         );
 
         if (
           applyState.status === "done" &&
-          toolCallState?.toolCall.function.name &&
-          getState().ui.toolSettings[toolCallState.toolCall.function.name] ===
-            "allowedWithoutPermission"
+          toolCallState?.toolCall.function.name
         ) {
-          extra.ideMessenger.post("acceptDiff", {
-            streamId: applyState.streamId,
-            filepath: applyState.filepath,
-          });
+          if (deferEditToolReview) {
+            if (toolCallState.status === "calling") {
+              dispatch(
+                acceptToolCall({
+                  toolCallId: effectiveToolCallId,
+                }),
+              );
+              dispatchPendingReviewToolCallOutput(
+                dispatch,
+                effectiveToolCallId,
+                applyState.filepath,
+              );
+              void dispatch(
+                streamResponseAfterToolCall({
+                  toolCallId: effectiveToolCallId,
+                }),
+              );
+            }
+          } else if (
+            getState().ui.toolSettings[toolCallState.toolCall.function.name] ===
+            "allowedWithoutPermission"
+          ) {
+            extra.ideMessenger.post("acceptDiff", {
+              streamId: applyState.streamId,
+              filepath: applyState.filepath,
+            });
+          }
         }
 
         if (applyState.status === "closed") {
           if (toolCallState) {
-            const accepted = toolCallState.status !== "canceled";
+            const accepted =
+              applyState.accepted ?? toolCallState.status !== "canceled";
+            const didContinueDuringDone =
+              deferEditToolReview && toolCallState.status === "done";
 
             logToolUsage(toolCallState, accepted, true, extra.ideMessenger);
 
@@ -86,47 +217,22 @@ export const handleApplyStateUpdate = createAsyncThunk<
 
             if (accepted) {
               if (toolCallState.status !== "errored") {
-                dispatch(
-                  acceptToolCall({
-                    toolCallId: applyState.toolCallId,
-                  }),
-                );
-
-                // Add autoformatting diff to tool output if present
-                if (applyState.autoFormattingDiff) {
+                if (!didContinueDuringDone) {
                   dispatch(
-                    updateToolCallOutput({
-                      toolCallId: applyState.toolCallId,
-                      contextItems: [
-                        {
-                          icon: "info",
-                          name: "Auto-formatting Applied",
-                          description: "Editor auto-formatting changes",
-                          content: `Along with your edits, the editor applied the following auto-formatting:\n\n${applyState.autoFormattingDiff}\n\n(Note: Pay close attention to changes such as single quotes being converted to double quotes, semicolons being removed or added, long lines being broken into multiple lines, adjusting indentation style, adding/removing trailing commas, etc. This will help you ensure future SEARCH/REPLACE operations to this file are accurate.)`,
-                          hidden: false,
-                        },
-                      ],
-                    }),
-                  );
-                } else {
-                  dispatch(
-                    updateToolCallOutput({
-                      toolCallId: applyState.toolCallId,
-                      contextItems: [
-                        {
-                          name: "Edit Success",
-                          content: `Successfully edited ${applyState.filepath}`,
-                          description: "",
-                          hidden: true,
-                        },
-                      ],
+                    acceptToolCall({
+                      toolCallId: effectiveToolCallId,
                     }),
                   );
                 }
+                dispatchFinalToolCallOutput(
+                  dispatch,
+                  effectiveToolCallId,
+                  applyState,
+                );
               } else {
                 dispatch(
                   updateToolCallOutput({
-                    toolCallId: applyState.toolCallId,
+                    toolCallId: effectiveToolCallId,
                     contextItems: [
                       {
                         name: "Edit Failed",
@@ -139,10 +245,19 @@ export const handleApplyStateUpdate = createAsyncThunk<
                 );
               }
 
-              void dispatch(
-                streamResponseAfterToolCall({
-                  toolCallId: applyState.toolCallId,
-                }),
+              if (!didContinueDuringDone) {
+                void dispatch(
+                  streamResponseAfterToolCall({
+                    toolCallId: effectiveToolCallId,
+                  }),
+                );
+              }
+            } else if (deferEditToolReview) {
+              rejectRemainingDeferredReviewEdits(
+                dispatch,
+                getState,
+                extra.ideMessenger,
+                applyState.streamId,
               );
             }
           }

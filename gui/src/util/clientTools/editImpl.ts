@@ -37,7 +37,7 @@ export const editToolImpl: ClientToolImpl = async (
     throw new Error(`${filepath} does not exist`);
   }
   const streamId = uuid();
-  void extras.dispatch(
+  await extras.dispatch(
     applyForEditTool({
       streamId,
       text: args.changes,

@@ -25,7 +25,7 @@ export const multiEditImpl: ClientToolImpl = async (
   );
 
   const streamId = uuid();
-  void extras.dispatch(
+  await extras.dispatch(
     applyForEditTool({
       streamId,
       toolCallId,

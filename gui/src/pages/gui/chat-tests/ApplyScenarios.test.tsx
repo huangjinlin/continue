@@ -99,6 +99,13 @@ test("Chat apply scenarios: display global accept all for multiple pending files
   const globalActions = await getElementByTestId(
     "pending-apply-global-actions",
   );
+  expect(globalActions.textContent).toContain("2 pending files");
+  expect(
+    document.querySelectorAll('[data-testid="accept-reject-all-buttons"]'),
+  ).toHaveLength(1);
+  expect(
+    document.querySelectorAll('[data-testid="pending-apply-file"]'),
+  ).toHaveLength(2);
   const acceptButton = within(globalActions).getByTestId("edit-accept-button");
 
   await act(async () => {

@@ -130,7 +130,7 @@
         },
         "continue.enableConsole": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "Enable a console to log and explore model inputs and outputs. It can be found in the bottom panel."
         },
         "continue.dataPath": {

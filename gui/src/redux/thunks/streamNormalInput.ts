@@ -4,6 +4,7 @@ import {
   ChatMessage,
   LLMFullCompletionOptions,
   ModelDescription,
+  ToolCallState,
   VisualBridgeMessageMetadata,
 } from "core";
 import { modelSupportsImages } from "core/llm/autodetect";
@@ -14,7 +15,7 @@ import {
   withVisualBridgeMessageMetadata,
 } from "core/llm/visualBridge";
 import { ToCoreProtocol } from "core/protocol";
-import { BUILT_IN_GROUP_NAME } from "core/tools/builtIn";
+import { BUILT_IN_GROUP_NAME, CLIENT_TOOLS_IMPLS } from "core/tools/builtIn";
 import { selectActiveTools } from "../selectors/selectActiveTools";
 import { selectSelectedChatModel } from "../slices/configSlice";
 import {
@@ -31,7 +32,7 @@ import {
   streamUpdate,
   updateHistoryItemAtIndex,
 } from "../slices/sessionSlice";
-import { ThunkApiType } from "../store";
+import { AppThunkDispatch, ThunkApiType } from "../store";
 import { constructMessages } from "../util/constructMessages";
 
 import { modelSupportsNativeTools } from "core/llm/toolSupport";
@@ -149,6 +150,50 @@ function injectVisualBridgeSummary(
       ],
     };
   });
+}
+
+export async function executeAutoApprovedToolCalls(
+  generatedCalls: ToolCallState[],
+  dispatch: AppThunkDispatch,
+  depth: number,
+) {
+  const clientToolCalls = generatedCalls.filter(({ toolCall }) =>
+    CLIENT_TOOLS_IMPLS.includes(
+      toolCall.function.name as (typeof CLIENT_TOOLS_IMPLS)[number],
+    ),
+  );
+  const otherToolCalls = generatedCalls.filter(
+    ({ toolCall }) =>
+      !CLIENT_TOOLS_IMPLS.includes(
+        toolCall.function.name as (typeof CLIENT_TOOLS_IMPLS)[number],
+      ),
+  );
+
+  for (const { toolCallId } of clientToolCalls) {
+    unwrapResult(
+      await dispatch(
+        callToolById({
+          toolCallId,
+          isAutoApproved: true,
+          depth: depth + 1,
+        }),
+      ),
+    );
+  }
+
+  await Promise.all(
+    otherToolCalls.map(async ({ toolCallId }) => {
+      unwrapResult(
+        await dispatch(
+          callToolById({
+            toolCallId,
+            isAutoApproved: true,
+            depth: depth + 1,
+          }),
+        ),
+      );
+    }),
+  );
 }
 
 async function maybeInjectVisualBridgeSummary(options: {
@@ -580,19 +625,7 @@ export const streamNormalInput = createAsyncThunk<
         return;
       }
       if (generatedCalls4.length > 0) {
-        await Promise.all(
-          generatedCalls4.map(async ({ toolCallId }) => {
-            unwrapResult(
-              await dispatch(
-                callToolById({
-                  toolCallId,
-                  isAutoApproved: true,
-                  depth: depth + 1,
-                }),
-              ),
-            );
-          }),
-        );
+        await executeAutoApprovedToolCalls(generatedCalls4, dispatch, depth);
       } else {
         for (const { toolCallId } of originalToolCalls) {
           unwrapResult(

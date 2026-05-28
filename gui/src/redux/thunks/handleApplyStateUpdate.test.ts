@@ -1,6 +1,7 @@
 import { ApplyState, ApplyToFilePayload, ToolCallState } from "core";
 import { EDIT_MODE_STREAM_ID } from "core/edit/constants";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { shouldDeferEditToolReview } from "../../util/deferredEditToolReview";
 import { logAgentModeEditOutcome } from "../../util/editOutcomeLogger";
 import {
   selectApplyStateByToolCallId,
@@ -9,6 +10,7 @@ import {
 import { updateEditStateApplyState } from "../slices/editState";
 import {
   acceptToolCall,
+  cancelToolCall,
   errorToolCall,
   updateApplyState,
   updateToolCallOutput,
@@ -26,6 +28,10 @@ vi.mock("../../util/editOutcomeLogger", () => ({
   logAgentModeEditOutcome: vi.fn(),
 }));
 
+vi.mock("../../util/deferredEditToolReview", () => ({
+  shouldDeferEditToolReview: vi.fn(() => false),
+}));
+
 vi.mock("../selectors/selectToolCalls", () => ({
   selectApplyStateByToolCallId: vi.fn(),
   selectToolCallById: vi.fn(),
@@ -39,6 +45,7 @@ vi.mock("../slices/editState", () => ({
 
 vi.mock("../slices/sessionSlice", () => ({
   acceptToolCall: vi.fn(() => ({ type: "session/acceptToolCall" })),
+  cancelToolCall: vi.fn(() => ({ type: "session/cancelToolCall" })),
   errorToolCall: vi.fn(() => ({ type: "session/errorToolCall" })),
   updateApplyState: vi.fn(() => ({ type: "session/updateApplyState" })),
   updateToolCallOutput: vi.fn(() => ({ type: "session/updateToolCallOutput" })),
@@ -78,6 +85,7 @@ describe("handleApplyStateUpdate", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(shouldDeferEditToolReview).mockReturnValue(false);
     mockDispatch = vi.fn();
     mockGetState = vi.fn();
     mockExtra = {
@@ -161,6 +169,63 @@ describe("handleApplyStateUpdate", () => {
         expect.objectContaining({ type: "session/updateApplyState" }),
       );
     });
+
+    it("should continue deferred review edit tools when status is done", async () => {
+      const toolCallState: ToolCallState = {
+        toolCallId: "test-tool-call",
+        status: "calling",
+        ...UNUSED_TOOL_CALL_PARAMS,
+      };
+
+      vi.mocked(shouldDeferEditToolReview).mockReturnValue(true);
+      vi.mocked(findToolCallById).mockReturnValue(toolCallState);
+      mockGetState.mockReturnValue({
+        session: {
+          history: [],
+          codeBlockApplyStates: {
+            states: [
+              {
+                streamId: "chat-stream",
+                status: "done",
+                toolCallId: "test-tool-call",
+                filepath: "test.txt",
+              },
+            ],
+          },
+        },
+        ui: { toolSettings: { unused: "allowedWithPermission" } },
+      });
+
+      const applyState: ApplyState = {
+        streamId: "chat-stream",
+        toolCallId: "test-tool-call",
+        status: "done",
+        filepath: "test.txt",
+        numDiffs: 1,
+      };
+
+      const thunk = handleApplyStateUpdate(applyState);
+      await thunk(mockDispatch, mockGetState, mockExtra);
+
+      expect(acceptToolCall).toHaveBeenCalledWith({
+        toolCallId: "test-tool-call",
+      });
+      expect(updateToolCallOutput).toHaveBeenCalledWith({
+        toolCallId: "test-tool-call",
+        contextItems: [
+          expect.objectContaining({
+            name: "Edit Pending Review",
+            content: expect.stringContaining(
+              "Generated pending edits for test.txt",
+            ),
+          }),
+        ],
+      });
+      expect(streamResponseAfterToolCall).toHaveBeenCalledWith({
+        toolCallId: "test-tool-call",
+      });
+      expect(mockExtra.ideMessenger.post).not.toHaveBeenCalled();
+    });
   });
 
   describe("closed status handling", () => {
@@ -170,7 +235,10 @@ describe("handleApplyStateUpdate", () => {
         status: "done",
         ...UNUSED_TOOL_CALL_PARAMS,
       };
-      const newApplyState = { streamId: "chat-stream" };
+      const newApplyState = {
+        streamId: "chat-stream",
+        toolCallId: "test-tool-call",
+      };
 
       vi.mocked(findToolCallById).mockReturnValue(toolCallState);
       mockGetState.mockReturnValue({
@@ -360,6 +428,117 @@ describe("handleApplyStateUpdate", () => {
       expect(acceptToolCall).toHaveBeenCalledWith({
         toolCallId: "test-tool-call",
       });
+    });
+
+    it("should not continue twice when deferred review tool closes after accept", async () => {
+      const toolCallState: ToolCallState = {
+        toolCallId: "test-tool-call",
+        status: "done",
+        ...UNUSED_TOOL_CALL_PARAMS,
+      };
+      const newApplyState = { streamId: "chat-stream" };
+
+      vi.mocked(shouldDeferEditToolReview).mockReturnValue(true);
+      vi.mocked(findToolCallById).mockReturnValue(toolCallState);
+      mockGetState.mockReturnValue({
+        session: {
+          history: [],
+          codeBlockApplyStates: {
+            states: [newApplyState],
+          },
+        },
+        config: { config: {} },
+      });
+
+      const applyState: ApplyState = {
+        streamId: "chat-stream",
+        toolCallId: "test-tool-call",
+        status: "closed",
+        accepted: true,
+        filepath: "test.txt",
+        numDiffs: 1,
+      };
+
+      const thunk = handleApplyStateUpdate(applyState);
+      await thunk(mockDispatch, mockGetState, mockExtra);
+
+      expect(acceptToolCall).not.toHaveBeenCalled();
+      expect(streamResponseAfterToolCall).not.toHaveBeenCalled();
+      expect(updateToolCallOutput).toHaveBeenCalledWith({
+        toolCallId: "test-tool-call",
+        contextItems: [
+          expect.objectContaining({
+            name: "Edit Success",
+            content: "Successfully edited test.txt",
+          }),
+        ],
+      });
+    });
+
+    it("should reject remaining deferred review edits when one deferred edit is rejected", async () => {
+      const currentToolCallState: ToolCallState = {
+        toolCallId: "test-tool-call",
+        status: "done",
+        ...UNUSED_TOOL_CALL_PARAMS,
+      };
+      const pendingToolCallState: ToolCallState = {
+        toolCallId: "other-tool-call",
+        status: "done",
+        ...UNUSED_TOOL_CALL_PARAMS,
+      };
+
+      vi.mocked(shouldDeferEditToolReview).mockReturnValue(true);
+      vi.mocked(findToolCallById).mockImplementation((_, toolCallId) => {
+        if (toolCallId === "test-tool-call") {
+          return currentToolCallState;
+        }
+        if (toolCallId === "other-tool-call") {
+          return pendingToolCallState;
+        }
+        return undefined;
+      });
+      mockGetState.mockReturnValue({
+        session: {
+          history: [],
+          codeBlockApplyStates: {
+            states: [
+              {
+                streamId: "chat-stream",
+                status: "closed",
+                toolCallId: "test-tool-call",
+                filepath: "src/current.ts",
+              },
+              {
+                streamId: "other-stream",
+                status: "done",
+                toolCallId: "other-tool-call",
+                filepath: "src/other.ts",
+              },
+            ],
+          },
+        },
+        config: { config: {} },
+      });
+
+      const applyState: ApplyState = {
+        streamId: "chat-stream",
+        status: "closed",
+        accepted: false,
+        filepath: "src/current.ts",
+        numDiffs: 1,
+      };
+
+      const thunk = handleApplyStateUpdate(applyState);
+      await thunk(mockDispatch, mockGetState, mockExtra);
+
+      expect(cancelToolCall).toHaveBeenCalledWith({
+        toolCallId: "other-tool-call",
+      });
+      expect(mockExtra.ideMessenger.post).toHaveBeenCalledWith("rejectDiff", {
+        filepath: "src/other.ts",
+        streamId: "other-stream",
+      });
+      expect(streamResponseAfterToolCall).not.toHaveBeenCalled();
     });
   });
 

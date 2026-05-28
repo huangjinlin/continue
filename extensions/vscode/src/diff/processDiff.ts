@@ -36,6 +36,9 @@ export async function processDiff(
   if (!streamId) {
     streamId = verticalDiffManager.getStreamIdForFile(newOrCurrentUri);
   }
+  if (!toolCallId) {
+    toolCallId = verticalDiffManager.getToolCallIdForFile(newOrCurrentUri);
+  }
 
   // Clear vertical diffs depending on action
   verticalDiffManager.clearForfileUri(newOrCurrentUri, action === "accept");
@@ -89,6 +92,7 @@ export async function processDiff(
       streamId,
       status: "closed",
       numDiffs: 0,
+      accepted: action === "accept",
       toolCallId,
       autoFormattingDiff, // Include autoformatting diff
     });
