@@ -23,7 +23,7 @@ export function usePendingReviewActions(
   const createFileToolCalls = useMemo(
     () =>
       pendingReviewItems.flatMap((item) =>
-        item.kind === "create-file" ? [item.toolCallState] : [],
+        item.kind === "apply" ? [] : [item.toolCallState],
       ),
     [pendingReviewItems],
   );

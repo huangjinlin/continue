@@ -1,6 +1,7 @@
 import { createSelector } from "@reduxjs/toolkit";
 import { ApplyState, ToolCallState, ToolStatus } from "core";
 import { BuiltInToolNames } from "core/tools/builtIn";
+import { shouldDeferEditToolReview } from "../../util/deferredEditToolReview";
 import { RootState } from "../store";
 import {
   findAllCurToolCalls,
@@ -80,6 +81,12 @@ export type PendingReviewItem =
       kind: "create-file";
       filepath: string;
       toolCallState: ToolCallState;
+    }
+  | {
+      key: string;
+      kind: "edit-tool";
+      filepath: string;
+      toolCallState: ToolCallState;
     };
 
 export const selectPendingCreateFileToolCalls = createSelector(
@@ -91,10 +98,23 @@ export const selectPendingCreateFileToolCalls = createSelector(
     ),
 );
 
+export const selectPendingDeferredEditToolCalls = createSelector(
+  selectPendingToolCalls,
+  (toolCalls) =>
+    toolCalls.filter((toolCallState) =>
+      shouldDeferEditToolReview(toolCallState.toolCall.function.name),
+    ),
+);
+
 export const selectPendingReviewItems = createSelector(
   selectDoneApplyStates,
   selectPendingCreateFileToolCalls,
-  (applyStates, createFileToolCalls): PendingReviewItem[] => {
+  selectPendingDeferredEditToolCalls,
+  (
+    applyStates,
+    createFileToolCalls,
+    deferredEditToolCalls,
+  ): PendingReviewItem[] => {
     const applyItems = applyStates.map((applyState) => ({
       key: `apply:${applyState.streamId}`,
       kind: "apply" as const,
@@ -112,6 +132,18 @@ export const selectPendingReviewItems = createSelector(
       toolCallState,
     }));
 
-    return [...applyItems, ...createFileItems];
+    const deferredEditItems = deferredEditToolCalls.map((toolCallState) => ({
+      key: `edit-tool:${toolCallState.toolCallId}`,
+      kind: "edit-tool" as const,
+      filepath:
+        typeof toolCallState.processedArgs?.filepath === "string"
+          ? toolCallState.processedArgs.filepath
+          : typeof toolCallState.parsedArgs?.filepath === "string"
+            ? toolCallState.parsedArgs.filepath
+            : "",
+      toolCallState,
+    }));
+
+    return [...applyItems, ...createFileItems, ...deferredEditItems];
   },
 );

@@ -23,7 +23,7 @@ export function PendingReviewItemsToolbar({
         <PendingReviewActionButtons pendingReviewItems={items} />
       )}
       canOpenFile={(entry) =>
-        entry.items.every((item) => item.kind === "apply")
+        entry.items.every((item) => item.kind !== "create-file")
       }
       onOpenFile={(entry) => {
         if (!entry.filepath) {

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { RootState } from "../store";
 import {
   selectPendingCreateFileToolCalls,
+  selectPendingDeferredEditToolCalls,
   selectPendingReviewItems,
 } from "./selectToolCalls";
 
@@ -60,7 +61,7 @@ function createState({
 }
 
 describe("selectPendingReviewItems", () => {
-  it("aggregates done apply states with pending create file tool calls", () => {
+  it("aggregates done apply states with pending review tool calls", () => {
     const doneApplyState = createApplyState({
       streamId: "apply-stream",
       filepath: "file:///workspace/src/existing.ts",
@@ -90,9 +91,23 @@ describe("selectPendingReviewItems", () => {
         },
       },
     });
+    const editToolCall = createToolCallState({
+      toolCallId: "edit-tool-call",
+      parsedArgs: {
+        filepath: "src/edited.ts",
+      },
+      toolCall: {
+        id: "edit-tool-call",
+        type: "function",
+        function: {
+          name: BuiltInToolNames.EditExistingFile,
+          arguments: '{"filepath":"src/edited.ts","changes":"..."}',
+        },
+      },
+    });
 
     const state = createState({
-      toolCallStates: [createFileToolCall, runTerminalToolCall],
+      toolCallStates: [createFileToolCall, editToolCall, runTerminalToolCall],
       applyStates: [
         doneApplyState,
         createApplyState({
@@ -106,6 +121,7 @@ describe("selectPendingReviewItems", () => {
     expect(selectPendingCreateFileToolCalls(state)).toEqual([
       createFileToolCall,
     ]);
+    expect(selectPendingDeferredEditToolCalls(state)).toEqual([editToolCall]);
     expect(selectPendingReviewItems(state)).toEqual([
       {
         key: "apply:apply-stream",
@@ -118,6 +134,12 @@ describe("selectPendingReviewItems", () => {
         kind: "create-file",
         filepath: "src/new-file.ts",
         toolCallState: createFileToolCall,
+      },
+      {
+        key: "edit-tool:edit-tool-call",
+        kind: "edit-tool",
+        filepath: "src/edited.ts",
+        toolCallState: editToolCall,
       },
     ]);
   });

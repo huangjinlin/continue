@@ -12,6 +12,7 @@ import { callToolById } from "../../../../redux/thunks/callToolById";
 import { cancelStream } from "../../../../redux/thunks/cancelStream";
 import { logToolUsage } from "../../../../redux/util";
 import { isJetBrains } from "../../../../util";
+import { shouldDeferEditToolReview } from "../../../../util/deferredEditToolReview";
 import { useMainEditor } from "../../TipTapEditor";
 import { BlockSettingsTopToolbar } from "./BlockSettingsTopToolbar";
 import { EditOutcomeToolbar } from "./EditOutcomeToolbar";
@@ -67,7 +68,8 @@ export function LumpToolbar() {
   const isApplying = applyStates.some((state) => state.status === "streaming");
   const pendingNonReviewToolCalls = pendingToolCalls.filter(
     (toolCallState) =>
-      toolCallState.toolCall.function.name !== BuiltInToolNames.CreateNewFile,
+      toolCallState.toolCall.function.name !== BuiltInToolNames.CreateNewFile &&
+      !shouldDeferEditToolReview(toolCallState.toolCall.function.name),
   );
   const firstPendingNonReviewToolCall = pendingNonReviewToolCalls[0];
   const editor = useMainEditor();
