@@ -22,10 +22,24 @@ export function PendingApplyStatesToolbar({
     },
     {} as Record<string, ApplyState[]>,
   );
+  const pendingFileEntries = Object.entries(applyStatesByFilepath);
+  const shouldShowGlobalActions = pendingFileEntries.length > 1;
 
   return (
     <div className="flex flex-col gap-2">
-      {Object.entries(applyStatesByFilepath).map(([filepath, states]) => (
+      {shouldShowGlobalActions && (
+        <div
+          data-testid="pending-apply-global-actions"
+          className="bg-badge flex items-center justify-between gap-3 rounded px-2 py-1"
+        >
+          <span className="text-xs">All pending changes</span>
+          <AcceptRejectDiffButtons
+            applyStates={pendingApplyStates}
+            onAcceptOrReject={async () => {}}
+          />
+        </div>
+      )}
+      {pendingFileEntries.map(([filepath, states]) => (
         <div key={filepath} className="flex justify-between gap-3">
           {filepath && (
             <span className="bg-badge flex min-w-0 max-w-[75%] items-center gap-1 truncate rounded pr-1 text-xs">

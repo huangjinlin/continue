@@ -1,4 +1,4 @@
-import { act } from "@testing-library/react";
+import { act, within } from "@testing-library/react";
 import { renderWithProviders } from "../../../util/test/render";
 import {
   getElementByTestId,
@@ -76,5 +76,43 @@ test("Chat apply scenarios: show apply cancellation", async () => {
   await verifyNotPresentByTestId("notch-applying-cancel-button");
 
   // Cleanup spy
+  messengerPostSpy.mockRestore();
+});
+
+test("Chat apply scenarios: display global accept all for multiple pending files", async () => {
+  const { ideMessenger } = await renderWithProviders(<Chat />);
+
+  const messengerPostSpy = vi.spyOn(ideMessenger, "post");
+
+  ideMessenger.mockMessageToWebview("updateApplyState", {
+    status: "done",
+    streamId: "stream-1",
+    filepath: "src/one.ts",
+  });
+
+  ideMessenger.mockMessageToWebview("updateApplyState", {
+    status: "done",
+    streamId: "stream-2",
+    filepath: "src/two.ts",
+  });
+
+  const globalActions = await getElementByTestId(
+    "pending-apply-global-actions",
+  );
+  const acceptButton = within(globalActions).getByTestId("edit-accept-button");
+
+  await act(async () => {
+    acceptButton.click();
+  });
+
+  expect(messengerPostSpy).toHaveBeenCalledWith("acceptDiff", {
+    filepath: "src/one.ts",
+    streamId: "stream-1",
+  });
+  expect(messengerPostSpy).toHaveBeenCalledWith("acceptDiff", {
+    filepath: "src/two.ts",
+    streamId: "stream-2",
+  });
+
   messengerPostSpy.mockRestore();
 });
