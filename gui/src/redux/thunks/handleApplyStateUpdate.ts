@@ -10,12 +10,11 @@ import {
 import { updateEditStateApplyState } from "../slices/editState";
 import {
   acceptToolCall,
-  cancelToolCall,
   errorToolCall,
   updateApplyState,
   updateToolCallOutput,
 } from "../slices/sessionSlice";
-import { AppThunkDispatch, RootState, ThunkApiType } from "../store";
+import { AppThunkDispatch, ThunkApiType } from "../store";
 import { findToolCallById, logToolUsage } from "../util";
 import { exitEdit } from "./edit";
 import { streamResponseAfterToolCall } from "./streamResponseAfterToolCall";
@@ -74,44 +73,6 @@ function dispatchFinalToolCallOutput(
         ],
       }),
     );
-  }
-}
-
-function rejectRemainingDeferredReviewEdits(
-  dispatch: AppThunkDispatch,
-  getState: () => RootState,
-  ideMessenger: ThunkApiType["extra"]["ideMessenger"],
-  currentStreamId: string,
-) {
-  const state = getState();
-  const pendingDeferredApplyStates =
-    state.session.codeBlockApplyStates.states.filter(
-      (pendingApplyState: ApplyState) =>
-        pendingApplyState.streamId !== currentStreamId &&
-        pendingApplyState.status === "done" &&
-        !!pendingApplyState.toolCallId,
-    );
-
-  for (const pendingApplyState of pendingDeferredApplyStates) {
-    const pendingToolCallState = findToolCallById(
-      state.session.history,
-      pendingApplyState.toolCallId!,
-    );
-
-    if (
-      pendingToolCallState?.status === "done" &&
-      shouldDeferEditToolReview(pendingToolCallState.toolCall.function.name)
-    ) {
-      dispatch(
-        cancelToolCall({
-          toolCallId: pendingApplyState.toolCallId!,
-        }),
-      );
-      ideMessenger.post("rejectDiff", {
-        filepath: pendingApplyState.filepath ?? "",
-        streamId: pendingApplyState.streamId,
-      });
-    }
   }
 }
 
@@ -252,13 +213,6 @@ export const handleApplyStateUpdate = createAsyncThunk<
                   }),
                 );
               }
-            } else if (deferEditToolReview) {
-              rejectRemainingDeferredReviewEdits(
-                dispatch,
-                getState,
-                extra.ideMessenger,
-                applyState.streamId,
-              );
             }
           }
         }

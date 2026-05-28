@@ -1,5 +1,6 @@
 import { createSelector } from "@reduxjs/toolkit";
-import { ToolStatus } from "core";
+import { ApplyState, ToolCallState, ToolStatus } from "core";
+import { BuiltInToolNames } from "core/tools/builtIn";
 import { RootState } from "../store";
 import {
   findAllCurToolCalls,
@@ -65,4 +66,52 @@ export const selectPendingToolCalls = createSelector(
 export const selectDoneApplyStates = createSelector(
   (store: RootState) => store.session.codeBlockApplyStates.states,
   (states) => states.filter((applyState) => applyState.status === "done"),
+);
+
+export type PendingReviewItem =
+  | {
+      key: string;
+      kind: "apply";
+      filepath: string;
+      applyState: ApplyState;
+    }
+  | {
+      key: string;
+      kind: "create-file";
+      filepath: string;
+      toolCallState: ToolCallState;
+    };
+
+export const selectPendingCreateFileToolCalls = createSelector(
+  selectPendingToolCalls,
+  (toolCalls) =>
+    toolCalls.filter(
+      (toolCallState) =>
+        toolCallState.toolCall.function.name === BuiltInToolNames.CreateNewFile,
+    ),
+);
+
+export const selectPendingReviewItems = createSelector(
+  selectDoneApplyStates,
+  selectPendingCreateFileToolCalls,
+  (applyStates, createFileToolCalls): PendingReviewItem[] => {
+    const applyItems = applyStates.map((applyState) => ({
+      key: `apply:${applyState.streamId}`,
+      kind: "apply" as const,
+      filepath: applyState.filepath ?? "",
+      applyState,
+    }));
+
+    const createFileItems = createFileToolCalls.map((toolCallState) => ({
+      key: `create-file:${toolCallState.toolCallId}`,
+      kind: "create-file" as const,
+      filepath:
+        typeof toolCallState.parsedArgs?.filepath === "string"
+          ? toolCallState.parsedArgs.filepath
+          : "",
+      toolCallState,
+    }));
+
+    return [...applyItems, ...createFileItems];
+  },
 );

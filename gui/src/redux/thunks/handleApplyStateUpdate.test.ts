@@ -475,7 +475,7 @@ describe("handleApplyStateUpdate", () => {
       });
     });
 
-    it("should reject remaining deferred review edits when one deferred edit is rejected", async () => {
+    it("should not cascade reject to other pending deferred review edits", async () => {
       const currentToolCallState: ToolCallState = {
         toolCallId: "test-tool-call",
         status: "done",
@@ -531,13 +531,18 @@ describe("handleApplyStateUpdate", () => {
       const thunk = handleApplyStateUpdate(applyState);
       await thunk(mockDispatch, mockGetState, mockExtra);
 
-      expect(cancelToolCall).toHaveBeenCalledWith({
+      // Per-file reject must not cancel other pending tool calls
+      expect(cancelToolCall).not.toHaveBeenCalledWith({
         toolCallId: "other-tool-call",
       });
-      expect(mockExtra.ideMessenger.post).toHaveBeenCalledWith("rejectDiff", {
-        filepath: "src/other.ts",
-        streamId: "other-stream",
-      });
+      // Per-file reject must not post rejectDiff for other pending files
+      expect(mockExtra.ideMessenger.post).not.toHaveBeenCalledWith(
+        "rejectDiff",
+        {
+          filepath: "src/other.ts",
+          streamId: "other-stream",
+        },
+      );
       expect(streamResponseAfterToolCall).not.toHaveBeenCalled();
     });
   });

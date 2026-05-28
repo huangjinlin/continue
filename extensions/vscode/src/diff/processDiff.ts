@@ -18,6 +18,9 @@ export async function processDiff(
   streamId?: string,
   toolCallId?: string,
 ) {
+  const shouldCancelApply =
+    action === "reject" && !newFileUri && !streamId && !toolCallId;
+
   let newOrCurrentUri = newFileUri;
   if (!newOrCurrentUri) {
     const currentFile = await ide.getCurrentFile();
@@ -42,7 +45,7 @@ export async function processDiff(
 
   // Clear vertical diffs depending on action
   verticalDiffManager.clearForfileUri(newOrCurrentUri, action === "accept");
-  if (action === "reject") {
+  if (shouldCancelApply) {
     // this is so that IDE reject diff command can also cancel apply
     core.invoke("cancelApply", undefined);
   }

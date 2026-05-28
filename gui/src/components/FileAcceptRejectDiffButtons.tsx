@@ -29,23 +29,25 @@ export default function FileAcceptRejectDiffButtons({
     >
       <ToolTip content="Reject this file">
         <button
-          className="text-foreground flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-xs opacity-80 hover:opacity-100 hover:brightness-125"
+          type="button"
+          aria-label="Reject this file"
+          className="text-foreground flex h-6 w-6 cursor-pointer items-center justify-center border-none bg-transparent p-0 opacity-80 hover:opacity-100 hover:brightness-125"
           onClick={() => onClick("rejectDiff")}
           data-testid="pending-apply-file-reject-button"
         >
           <XMarkIcon className="text-error h-4 w-4" />
-          <span className="hidden sm:inline">Reject</span>
         </button>
       </ToolTip>
 
       <ToolTip content="Accept this file">
         <button
-          className="text-foreground flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-xs opacity-80 hover:opacity-100 hover:brightness-125"
+          type="button"
+          aria-label="Accept this file"
+          className="text-foreground flex h-6 w-6 cursor-pointer items-center justify-center border-none bg-transparent p-0 opacity-80 hover:opacity-100 hover:brightness-125"
           onClick={() => onClick("acceptDiff")}
           data-testid="pending-apply-file-accept-button"
         >
           <CheckIcon className="text-success h-4 w-4" />
-          <span className="hidden sm:inline">Accept</span>
         </button>
       </ToolTip>
     </div>
