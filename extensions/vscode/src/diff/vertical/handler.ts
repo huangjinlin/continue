@@ -328,33 +328,16 @@ export class VerticalDiffHandler implements vscode.Disposable {
     // Diff is messed up without this delay.
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    await this.ensureCurrentFileIsFocused();
-
-    // First, we reset the original diff by rejecting all pending diff blocks
-    const blocks = this.editorToVerticalDiffCodeLens.get(this.fileUri) ?? [];
-    for (const block of blocks.reverse()) {
-      await this.acceptRejectBlock(
-        false,
-        block.start,
-        block.numGreen,
-        block.numRed,
-        true,
-      );
-    }
-
-    this.clearDecorations();
-
-    // Then, get our old/new file content based on the original lines
+    // First, get our old/new file content based on the original lines
     // We need the input to be "newline terminated" rather than
     // newline separated, because myersDiff() would consider
     // ["A"] => "A" and ["A", ""] => "A\n" to be the same single line.
     // "A\n" and "A\n\n" are unambiguous.
-    const oldContentWithoutTrailingNewline = diffLines
-      .filter((line) => line.type === "same" || line.type === "old")
-      .map((line) => line.line)
-      .join("\n");
-
-    const oldFileContent = oldContentWithoutTrailingNewline + "\n";
+    const oldFileContent =
+      diffLines
+        .filter((line) => line.type === "same" || line.type === "old")
+        .map((line) => line.line)
+        .join("\n") + "\n";
 
     const newFileContent =
       diffLines
@@ -362,24 +345,60 @@ export class VerticalDiffHandler implements vscode.Disposable {
         .map((line) => line.line)
         .join("\n") + "\n";
 
+    await this.ensureCurrentFileIsFocused();
+    this.clearDecorations();
+
     const myersDiffs = myersDiff(oldFileContent, newFileContent);
 
-    // Preserve the trailing newline behavior by checking the original document content
-    const originalDocumentContent = this.editor.document.getText(this.range);
-    const originalContentEndsWithNewline =
-      originalDocumentContent.endsWith("\n");
+    // Compute the range that currently contains everything we've streamed in
+    // (red ghosts, green inserts) so a single deterministic replace overwrites
+    // all of it. Falling back to two separate edits (restore + replace) leaves
+    // a window where decorations/ranges drift and bare text survives outside
+    // accept/reject control.
+    const document = this.editor.document;
+    const hasStreamedPreview =
+      (this.editorToVerticalDiffCodeLens.get(this.fileUri)?.length ?? 0) > 0 ||
+      this.currentLineIndex > this.startLine;
 
-    // Add trailing newline only if the original file had one to prevent line count discrepancies
+    const startLine = Math.max(0, Math.min(this.startLine, document.lineCount));
+    let replaceRange: vscode.Range;
+    let appendTrailingNewline: boolean;
+
+    if (hasStreamedPreview) {
+      // After streaming, the streamed region spans from startLine to
+      // currentLineIndex (exclusive). Anything at currentLineIndex onwards is
+      // the ORIGINAL file's suffix that was pushed down by inserts.
+      const previewEndLine = Math.min(
+        Math.max(this.currentLineIndex, startLine),
+        document.lineCount,
+      );
+      replaceRange = new vscode.Range(
+        new vscode.Position(startLine, 0),
+        new vscode.Position(previewEndLine, 0),
+      );
+      // The replace target ends at (previewEndLine, 0) which is the start of a
+      // line. We must append "\n" so the original suffix below doesn't get
+      // concatenated onto our last replace line. Skip only when previewEndLine
+      // is past EOF (no following content and original had no trailing \n).
+      appendTrailingNewline = previewEndLine < document.lineCount;
+    } else {
+      replaceRange = this.range;
+      const originalDocumentContent = document.getText(this.range);
+      appendTrailingNewline = originalDocumentContent.endsWith("\n");
+    }
+
     const replaceContent =
       myersDiffs
         .map((diff) => (diff.type === "old" ? "" : diff.line))
-        .join("\n") + (originalContentEndsWithNewline ? "\n" : "");
+        .join("\n") + (appendTrailingNewline ? "\n" : "");
 
-    // Then, we insert our diff lines
-    await this.editor.edit((editBuilder) => {
-      editBuilder.replace(this.range, replaceContent),
-        { undoStopAfter: false, undoStopBefore: false };
-    });
+    // Single deterministic replace covering the full streamed region.
+    await this.editor.edit(
+      (editBuilder) => {
+        editBuilder.replace(replaceRange, replaceContent);
+      },
+      { undoStopAfter: false, undoStopBefore: false },
+    );
 
     // Lastly, we apply decorations
     let numRed = 0;
