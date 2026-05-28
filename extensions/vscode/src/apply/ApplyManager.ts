@@ -18,6 +18,13 @@ import { VsCodeWebviewProtocol } from "../webviewProtocol";
  * Handles applying text/code to files including diff generation and streaming
  */
 export class ApplyManager {
+  /**
+   * Serializes concurrent applyToFile calls so streamed diffs targeting
+   * different files don't fight over the active editor (the vertical diff
+   * handler pauses its queue when its bound editor loses focus).
+   */
+  private applyQueue: Promise<void> = Promise.resolve();
+
   constructor(
     private readonly ide: VsCodeIde,
     private readonly webviewProtocol: VsCodeWebviewProtocol,
@@ -25,35 +32,42 @@ export class ApplyManager {
     private readonly configHandler: ConfigHandler,
   ) {}
 
-  async applyToFile({
+  async applyToFile(payload: ApplyToFilePayload) {
+    const next = this.applyQueue.then(() => this.runApplyToFile(payload));
+    // Swallow errors in the queue chain so one failure doesn't block all
+    // subsequent applies, but still surface them to the caller.
+    this.applyQueue = next.catch(() => undefined);
+    return next;
+  }
+
+  private async runApplyToFile({
     streamId,
     filepath,
     text,
     toolCallId,
     isSearchAndReplace,
   }: ApplyToFilePayload) {
-    if (filepath) {
-      await this.ensureFileOpen(filepath);
-    }
-
-    const { activeTextEditor } = vscode.window;
-    if (!activeTextEditor) {
+    const editor = filepath
+      ? await this.ensureFileOpen(filepath)
+      : vscode.window.activeTextEditor;
+    if (!editor) {
       void vscode.window.showErrorMessage("No active editor to apply edits to");
       return;
     }
 
     // Capture the original file content before applying changes
-    const originalFileContent = activeTextEditor.document.getText();
+    const originalFileContent = editor.document.getText();
 
     await this.webviewProtocol.request("updateApplyState", {
       streamId,
       status: "streaming",
       fileContent: text,
       originalFileContent,
+      filepath: editor.document.uri.toString(),
       toolCallId,
     });
 
-    const hasExistingDocument = !!activeTextEditor.document.getText().trim();
+    const hasExistingDocument = !!editor.document.getText().trim();
     if (hasExistingDocument) {
       // Currently `isSearchAndReplace` will always provide a full file rewrite
       // as the contents of `text`, so we can just instantly apply
@@ -63,32 +77,30 @@ export class ApplyManager {
           text,
           streamId,
           toolCallId,
+          editor,
         );
       } else {
-        await this.handleExistingDocument(
-          activeTextEditor,
-          text,
-          streamId,
-          toolCallId,
-        );
+        await this.handleExistingDocument(editor, text, streamId, toolCallId);
       }
     } else {
-      await this.handleEmptyDocument(
-        activeTextEditor,
-        text,
-        streamId,
-        toolCallId,
-      );
+      await this.handleEmptyDocument(editor, text, streamId, toolCallId);
     }
   }
 
-  private async ensureFileOpen(filepath: string): Promise<void> {
+  private async ensureFileOpen(
+    filepath: string,
+  ): Promise<vscode.TextEditor | undefined> {
     const fileExists = await this.ide.fileExists(filepath);
     if (!fileExists) {
       await this.ide.writeFile(filepath, "");
-      await this.ide.openFile(filepath);
     }
-    await this.ide.openFile(filepath);
+    const document = await vscode.workspace.openTextDocument(
+      vscode.Uri.parse(filepath),
+    );
+    return vscode.window.showTextDocument(document, {
+      preview: false,
+      preserveFocus: false,
+    });
   }
 
   private modelIsTooFastForStreaming(model: string): boolean {
@@ -153,6 +165,7 @@ export class ApplyManager {
         isInstantApply,
         streamId,
         toolCallId,
+        editor,
       );
     } else {
       await this.handleNonInstantDiff(
@@ -233,6 +246,7 @@ export class ApplyManager {
 
     if (streaming) {
       await verticalDiffManager.streamEdit({
+        editor,
         input: prompt,
         llm,
         streamId,
@@ -262,6 +276,7 @@ export class ApplyManager {
           true, // Apply instantly since we accumulated all content
           streamId,
           toolCallId,
+          editor,
         );
       }
     }

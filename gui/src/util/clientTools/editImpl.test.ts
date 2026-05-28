@@ -39,18 +39,17 @@ describe("editToolImpl", () => {
     };
   });
 
-  it("waits for applyForEditTool dispatch before resolving", async () => {
+  it("does not wait for applyForEditTool dispatch before resolving", async () => {
     mockResolveRelativePathInDir.mockResolvedValue("file:///dir/test/file.txt");
 
-    let resolveDispatch: (() => void) | undefined;
     mockExtras.dispatch = vi.fn().mockImplementation(
       () =>
-        new Promise<void>((resolve) => {
-          resolveDispatch = resolve;
+        new Promise<void>(() => {
+          // Keep pending to ensure editToolImpl resolves independently.
         }),
     ) as any;
 
-    const pendingResult = editToolImpl(
+    const result = await editToolImpl(
       {
         filepath: "file.txt",
         changes: "updated contents",
@@ -59,29 +58,14 @@ describe("editToolImpl", () => {
       mockExtras,
     );
 
-    await Promise.resolve();
-
     expect(mockApplyForEditTool).toHaveBeenCalledWith({
       streamId: "test-uuid",
       text: "updated contents",
       toolCallId: "tool-call-id",
       filepath: "file:///dir/test/file.txt",
     });
-    await vi.waitFor(() => {
-      expect(mockExtras.dispatch).toHaveBeenCalledTimes(1);
-    });
-
-    let hasResolved = false;
-    void pendingResult.then(() => {
-      hasResolved = true;
-    });
-
-    await Promise.resolve();
-    expect(hasResolved).toBe(false);
-
-    resolveDispatch?.();
-
-    await expect(pendingResult).resolves.toEqual({
+    expect(mockExtras.dispatch).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
       respondImmediately: false,
       output: undefined,
     });

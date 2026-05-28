@@ -105,6 +105,8 @@ $notifier.Show($toast)`;
  * so we don't have to rewrite some of the handlers
  */
 export class VsCodeMessenger {
+  private applyManager: ApplyManager | undefined;
+
   onWebview<T extends keyof FromWebviewProtocol>(
     messageType: T,
     handler: (
@@ -207,14 +209,20 @@ export class VsCodeMessenger {
         configHandlerPromise,
       ]);
 
-      const applyManager = new ApplyManager(
-        this.ide,
-        webviewProtocol,
-        verticalDiffManager,
-        configHandler,
-      );
+      // Reuse a single ApplyManager so that its internal applyQueue can
+      // serialize concurrent apply requests across files. Creating a new
+      // instance per request would defeat the queue and let two diff
+      // streams race for active editor focus, which causes one to fail.
+      if (!this.applyManager) {
+        this.applyManager = new ApplyManager(
+          this.ide,
+          webviewProtocol,
+          verticalDiffManager,
+          configHandler,
+        );
+      }
 
-      await applyManager.applyToFile(data);
+      await this.applyManager.applyToFile(data);
     });
 
     this.onWebview("showTutorial", async (msg) => {

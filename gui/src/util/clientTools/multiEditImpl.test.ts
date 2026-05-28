@@ -151,21 +151,20 @@ describe("multiEditImpl GUI specific", () => {
       });
     });
 
-    it("waits for applyForEditTool dispatch before resolving", async () => {
+    it("does not wait for applyForEditTool dispatch before resolving", async () => {
       mockResolveRelativePathInDir.mockResolvedValue(
         "file:///dir/test/file.txt",
       );
       mockExtras.ideMessenger.ide.readFile = vi.fn().mockResolvedValue("test");
 
-      let resolveDispatch: (() => void) | undefined;
       mockExtras.dispatch = vi.fn().mockImplementation(
         () =>
-          new Promise<void>((resolve) => {
-            resolveDispatch = resolve;
+          new Promise<void>(() => {
+            // Keep pending to ensure multiEditImpl resolves independently.
           }),
       ) as any;
 
-      const pendingResult = multiEditImpl(
+      const result = await multiEditImpl(
         {
           filepath: "file.txt",
           edits: [{ old_string: "test", new_string: "new" }],
@@ -174,22 +173,8 @@ describe("multiEditImpl GUI specific", () => {
         mockExtras,
       );
 
-      await Promise.resolve();
-      await vi.waitFor(() => {
-        expect(mockExtras.dispatch).toHaveBeenCalledTimes(1);
-      });
-
-      let hasResolved = false;
-      void pendingResult.then(() => {
-        hasResolved = true;
-      });
-
-      await Promise.resolve();
-      expect(hasResolved).toBe(false);
-
-      resolveDispatch?.();
-
-      await expect(pendingResult).resolves.toEqual({
+      expect(mockExtras.dispatch).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({
         respondImmediately: false,
         output: undefined,
       });

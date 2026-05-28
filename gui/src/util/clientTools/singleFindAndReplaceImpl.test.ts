@@ -347,21 +347,20 @@ describe("singleFindAndReplaceImpl", () => {
       });
     });
 
-    it("waits for applyForEditTool dispatch before resolving", async () => {
+    it("does not wait for applyForEditTool dispatch before resolving", async () => {
       mockResolveRelativePathInDir.mockResolvedValue("/test/file.txt");
       mockExtras.ideMessenger.ide.readFile = vi
         .fn()
         .mockResolvedValue("test content");
 
-      let resolveDispatch: (() => void) | undefined;
       mockExtras.dispatch = vi.fn().mockImplementation(
         () =>
-          new Promise<void>((resolve) => {
-            resolveDispatch = resolve;
+          new Promise<void>(() => {
+            // Keep pending to ensure singleFindAndReplaceImpl resolves independently.
           }),
       ) as any;
 
-      const pendingResult = singleFindAndReplaceImpl(
+      const result = await singleFindAndReplaceImpl(
         {
           filepath: "file.txt",
           old_string: "test",
@@ -371,22 +370,8 @@ describe("singleFindAndReplaceImpl", () => {
         mockExtras,
       );
 
-      await Promise.resolve();
-      await vi.waitFor(() => {
-        expect(mockExtras.dispatch).toHaveBeenCalledTimes(1);
-      });
-
-      let hasResolved = false;
-      void pendingResult.then(() => {
-        hasResolved = true;
-      });
-
-      await Promise.resolve();
-      expect(hasResolved).toBe(false);
-
-      resolveDispatch?.();
-
-      await expect(pendingResult).resolves.toEqual({
+      expect(mockExtras.dispatch).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({
         respondImmediately: false,
         output: undefined,
       });

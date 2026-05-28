@@ -48,13 +48,26 @@ export class VerticalDiffManager {
     startLine: number,
     endLine: number,
     options: VerticalDiffHandlerOptions,
+    targetEditor?: vscode.TextEditor,
   ): VerticalDiffHandler | undefined {
     if (this.fileUriToHandler.has(fileUri)) {
       this.fileUriToHandler.get(fileUri)?.clear(false);
       this.fileUriToHandler.delete(fileUri);
     }
-    const editor = vscode.window.activeTextEditor;
-    if (editor && URI.equal(editor.document.uri.toString(), fileUri)) {
+    let editor: vscode.TextEditor | undefined = targetEditor;
+    if (!editor || !URI.equal(editor.document.uri.toString(), fileUri)) {
+      editor = vscode.window.visibleTextEditors.find((found) =>
+        URI.equal(found.document.uri.toString(), fileUri),
+      );
+    }
+    if (
+      !editor &&
+      vscode.window.activeTextEditor &&
+      URI.equal(vscode.window.activeTextEditor.document.uri.toString(), fileUri)
+    ) {
+      editor = vscode.window.activeTextEditor;
+    }
+    if (editor) {
       const handler = new VerticalDiffHandler(
         startLine,
         endLine,
@@ -214,11 +227,12 @@ export class VerticalDiffManager {
     instant: boolean,
     streamId: string,
     toolCallId?: string,
+    targetEditor?: vscode.TextEditor,
   ) {
     vscode.commands.executeCommand("setContext", "continue.diffVisible", true);
 
     // Get the current editor fileUri/range
-    let editor = vscode.window.activeTextEditor;
+    let editor = targetEditor ?? vscode.window.activeTextEditor;
     if (!editor) {
       return;
     }
@@ -255,6 +269,7 @@ export class VerticalDiffManager {
           }),
         streamId,
       },
+      editor,
     );
 
     if (!diffHandler) {
@@ -305,10 +320,11 @@ export class VerticalDiffManager {
     newContent: string,
     streamId: string,
     toolCallId?: string,
+    targetEditor?: vscode.TextEditor,
   ) {
     vscode.commands.executeCommand("setContext", "continue.diffVisible", true);
 
-    const editor = vscode.window.activeTextEditor;
+    const editor = targetEditor ?? vscode.window.activeTextEditor;
     if (!editor) {
       return;
     }
@@ -335,6 +351,7 @@ export class VerticalDiffManager {
           }),
         streamId,
       },
+      editor,
     );
 
     if (!diffHandler) {
@@ -361,6 +378,7 @@ export class VerticalDiffManager {
   }
 
   async streamEdit({
+    editor: targetEditor,
     input,
     llm,
     streamId,
@@ -371,6 +389,7 @@ export class VerticalDiffManager {
     rulesToInclude,
     isApply,
   }: {
+    editor?: vscode.TextEditor;
     input: string;
     llm: ILLM;
     streamId?: string;
@@ -387,7 +406,7 @@ export class VerticalDiffManager {
       true,
     );
 
-    let editor = vscode.window.activeTextEditor;
+    let editor = targetEditor ?? vscode.window.activeTextEditor;
 
     if (!editor) {
       return undefined;
@@ -465,6 +484,7 @@ export class VerticalDiffManager {
           }),
         streamId,
       },
+      editor,
     );
 
     if (!diffHandler) {
