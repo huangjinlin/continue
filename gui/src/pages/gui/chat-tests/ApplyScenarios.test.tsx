@@ -1,4 +1,4 @@
-import { act, within } from "@testing-library/react";
+import { act, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "../../../util/test/render";
 import {
   getElementByTestId,
@@ -119,6 +119,78 @@ test("Chat apply scenarios: display global accept all for multiple pending files
   expect(messengerPostSpy).toHaveBeenCalledWith("acceptDiff", {
     filepath: "src/two.ts",
     streamId: "stream-2",
+  });
+
+  messengerPostSpy.mockRestore();
+});
+
+test("Chat apply scenarios: display per-file accept and reject actions", async () => {
+  const { ideMessenger } = await renderWithProviders(<Chat />);
+
+  const messengerPostSpy = vi.spyOn(ideMessenger, "post");
+
+  ideMessenger.mockMessageToWebview("updateApplyState", {
+    status: "done",
+    streamId: "stream-1",
+    filepath: "src/one.ts",
+  });
+
+  ideMessenger.mockMessageToWebview("updateApplyState", {
+    status: "done",
+    streamId: "stream-2",
+    filepath: "src/two.ts",
+  });
+
+  await waitFor(() => {
+    expect(
+      document.querySelectorAll('[data-testid="pending-apply-file"]'),
+    ).toHaveLength(2);
+  });
+  const fileRows = document.querySelectorAll(
+    '[data-testid="pending-apply-file"]',
+  );
+
+  await act(async () => {
+    within(fileRows[0] as HTMLElement)
+      .getByTestId("pending-apply-file-accept-button")
+      .click();
+  });
+
+  const acceptCalls = messengerPostSpy.mock.calls.filter(
+    ([message]) => message === "acceptDiff",
+  );
+  expect(acceptCalls).toEqual([
+    [
+      "acceptDiff",
+      {
+        filepath: "src/one.ts",
+        streamId: "stream-1",
+      },
+    ],
+  ]);
+
+  messengerPostSpy.mockRestore();
+});
+
+test("Chat apply scenarios: clicking a pending file opens it in the editor", async () => {
+  const { ideMessenger } = await renderWithProviders(<Chat />);
+
+  const messengerPostSpy = vi.spyOn(ideMessenger, "post");
+
+  ideMessenger.mockMessageToWebview("updateApplyState", {
+    status: "done",
+    streamId: "stream-1",
+    filepath: "src/one.ts",
+  });
+
+  const fileRow = await getElementByTestId("pending-apply-file");
+
+  await act(async () => {
+    within(fileRow).getByTestId("pending-apply-file-name").click();
+  });
+
+  expect(messengerPostSpy).toHaveBeenCalledWith("showFile", {
+    filepath: "src/one.ts",
   });
 
   messengerPostSpy.mockRestore();
