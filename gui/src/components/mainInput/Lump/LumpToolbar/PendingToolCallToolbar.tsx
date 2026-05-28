@@ -1,3 +1,4 @@
+import { ToolCallState } from "core";
 import { useAppDispatch, useAppSelector } from "../../../../redux/hooks";
 import { selectPendingToolCalls } from "../../../../redux/selectors/selectToolCalls";
 import { callToolById } from "../../../../redux/thunks/callToolById";
@@ -13,10 +14,17 @@ export const generateToolCallButtonTestId = (
   return `${action}-tool-call-button-${toolCallId}`;
 };
 
-export function PendingToolCallToolbar() {
+interface PendingToolCallToolbarProps {
+  pendingToolCalls?: ToolCallState[];
+}
+
+export function PendingToolCallToolbar({
+  pendingToolCalls: pendingToolCallsProp,
+}: PendingToolCallToolbarProps = {}) {
   const dispatch = useAppDispatch();
   const jetbrains = isJetBrains();
-  const pendingToolCalls = useAppSelector(selectPendingToolCalls);
+  const selectedPendingToolCalls = useAppSelector(selectPendingToolCalls);
+  const pendingToolCalls = pendingToolCallsProp ?? selectedPendingToolCalls;
   const editor = useMainEditor();
 
   if (pendingToolCalls.length === 0) {

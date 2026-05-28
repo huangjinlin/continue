@@ -3,7 +3,7 @@ import { useContext, useEffect } from "react";
 import { IdeMessengerContext } from "../../../../context/IdeMessenger";
 import { useAppDispatch, useAppSelector } from "../../../../redux/hooks";
 import {
-  selectFirstPendingToolCall,
+  selectPendingReviewItems,
   selectPendingToolCalls,
   selectToolCallsByStatus,
 } from "../../../../redux/selectors/selectToolCalls";
@@ -17,7 +17,7 @@ import { BlockSettingsTopToolbar } from "./BlockSettingsTopToolbar";
 import { EditOutcomeToolbar } from "./EditOutcomeToolbar";
 import { EditToolbar } from "./EditToolbar";
 import { IsApplyingToolbar } from "./IsApplyingToolbar";
-import { PendingApplyStatesToolbar } from "./PendingApplyStatesToolbar";
+import { PendingReviewItemsToolbar } from "./PendingReviewItemsToolbar";
 import { PendingToolCallToolbar } from "./PendingToolCallToolbar";
 import { StreamingToolbar } from "./StreamingToolbar";
 import { TtsActiveToolbar } from "./TtsActiveToolbar";
@@ -54,7 +54,7 @@ export function LumpToolbar() {
   const isInEdit = useAppSelector((state) => state.session.isInEdit);
   const jetbrains = isJetBrains();
   const pendingToolCalls = useAppSelector(selectPendingToolCalls);
-  const firstPendingToolCall = useAppSelector(selectFirstPendingToolCall);
+  const pendingReviewItems = useAppSelector(selectPendingReviewItems);
   const editApplyState = useAppSelector(
     (state) => state.editModeState.applyState,
   );
@@ -65,6 +65,11 @@ export function LumpToolbar() {
     (state) => state.status === "done",
   );
   const isApplying = applyStates.some((state) => state.status === "streaming");
+  const pendingNonReviewToolCalls = pendingToolCalls.filter(
+    (toolCallState) =>
+      toolCallState.toolCall.function.name !== BuiltInToolNames.CreateNewFile,
+  );
+  const firstPendingNonReviewToolCall = pendingNonReviewToolCalls[0];
   const editor = useMainEditor();
 
   // Get ALL running terminal commands
@@ -122,17 +127,19 @@ export function LumpToolbar() {
   };
 
   useEffect(() => {
-    if (!firstPendingToolCall && !hasRunningTerminalCommand) {
+    if (!firstPendingNonReviewToolCall && !hasRunningTerminalCommand) {
       return;
     }
 
     const handleToolCallKeyboardShortcuts = (event: KeyboardEvent) => {
-      if (isExecuteToolCallShortcut(event) && firstPendingToolCall) {
+      if (isExecuteToolCallShortcut(event) && firstPendingNonReviewToolCall) {
         event.preventDefault();
         event.stopPropagation();
 
         void dispatch(
-          callToolById({ toolCallId: firstPendingToolCall.toolCallId }),
+          callToolById({
+            toolCallId: firstPendingNonReviewToolCall.toolCallId,
+          }),
         );
       } else if (isCancelToolCallShortcut(event, jetbrains)) {
         event.preventDefault();
@@ -141,17 +148,22 @@ export function LumpToolbar() {
         if (hasRunningTerminalCommand) {
           // Stop running terminal commands
           void handleStopAction();
-        } else if (firstPendingToolCall) {
+        } else if (firstPendingNonReviewToolCall) {
           // Cancel pending tool call. If last call, focus editor
-          if (pendingToolCalls.length === 1) {
+          if (pendingNonReviewToolCalls.length === 1) {
             editor.mainEditor?.commands.focus();
           }
           void dispatch(
             cancelToolCall({
-              toolCallId: firstPendingToolCall.toolCallId,
+              toolCallId: firstPendingNonReviewToolCall.toolCallId,
             }),
           );
-          logToolUsage(firstPendingToolCall, false, true, ideMessenger);
+          logToolUsage(
+            firstPendingNonReviewToolCall,
+            false,
+            true,
+            ideMessenger,
+          );
         }
       }
     };
@@ -161,8 +173,8 @@ export function LumpToolbar() {
       document.removeEventListener("keydown", handleToolCallKeyboardShortcuts);
     };
   }, [
-    firstPendingToolCall,
-    pendingToolCalls,
+    firstPendingNonReviewToolCall,
+    pendingNonReviewToolCalls,
     editor,
     hasRunningTerminalCommand,
     runningTerminalCalls,
@@ -198,13 +210,22 @@ export function LumpToolbar() {
     return <StreamingToolbar onStop={() => dispatch(cancelStream())} />;
   }
 
-  if (pendingToolCalls.length > 0) {
-    return <PendingToolCallToolbar />;
+  if (pendingReviewItems.length > 0) {
+    return (
+      <div className="flex w-full flex-col gap-2">
+        {pendingNonReviewToolCalls.length > 0 && (
+          <PendingToolCallToolbar
+            pendingToolCalls={pendingNonReviewToolCalls}
+          />
+        )}
+        <PendingReviewItemsToolbar pendingReviewItems={pendingReviewItems} />
+      </div>
+    );
   }
 
-  if (pendingApplyStates.length > 0) {
+  if (pendingToolCalls.length > 0) {
     return (
-      <PendingApplyStatesToolbar pendingApplyStates={pendingApplyStates} />
+      <PendingToolCallToolbar pendingToolCalls={pendingNonReviewToolCalls} />
     );
   }
 
